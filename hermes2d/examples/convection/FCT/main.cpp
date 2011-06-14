@@ -9,7 +9,7 @@
 
 
 
-const int INIT_REF_NUM =6;                   // Number of initial refinements.
+const int INIT_REF_NUM =5;                   // Number of initial refinements.
 const int P_INIT = 1;                             // Initial polynomial degree.
 const double time_step = 1e-3;                           // Time step.
 const double T_FINAL = 2*PI;                       // Time interval length.
@@ -448,6 +448,10 @@ bool verbose = true;
 	Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver);
 	 mass_matrix->multiply_with_scalar(time_step);  // massmatrix = M_C
 
+//Berechnung der Anfangsmasse/tau
+scalar mass_init = 0.0;
+scalar mass;
+for(int i=0; i<ndof;i++) mass_init += coeff_vec[i]*lumped_matrix->get(i,i); 
 	
 do
 {
@@ -500,7 +504,14 @@ do
 	for(int i= 0; i<ndof; i++) coeff_vec[i]= u_L[i]+ (flux_scalar[i]/lumped_matrix->get(i,i));
 	if (ts > 1 && ts % 10 == 0) Solution::vector_to_solution(coeff_vec, &space, &u_prev_time);
 	
-
+//---------------Test fuer Massenerhaltung
+		mass = 0.0;		
+			for(int i=0; i<ndof;i++) mass += u_L[i]*lumped_matrix->get(i,i);
+			if(mass!= mass_init) printf("mass_init: %f, mass_low:%f", mass_init, mass);
+		mass = 0.0;
+			for(int i=0; i<ndof;i++) mass += coeff_vec[i]*lumped_matrix->get(i,i);
+			if(mass!= mass_init) printf("mass:%f \n", mass);
+//--------------		
 
 if (ts > 1 && ts % 10 == 0) {
 	  	// Visualize the solution.	

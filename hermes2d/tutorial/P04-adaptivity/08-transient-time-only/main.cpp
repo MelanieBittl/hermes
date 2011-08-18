@@ -42,8 +42,6 @@ const double TIME_STEP_DEC_RATIO = 0.8;            // Time step decrease ratio (
 MatrixSolverType matrix_solver = SOLVER_UMFPACK;   // Possibilities: SOLVER_AMESOS, SOLVER_AZTECOO, SOLVER_MUMPS,
                                                    // SOLVER_PETSC, SOLVER_SUPERLU, SOLVER_UMFPACK.
 
-const double ALPHA = 4.0;                          // For the nonlinear thermal conductivity.
-
 // Choose one of the following time-integration methods, or define your own Butcher's table. The last number 
 // in the name of each method is its order. The one before last, if present, is the number of stages.
 // Explicit methods:
@@ -61,7 +59,9 @@ const double ALPHA = 4.0;                          // For the nonlinear thermal 
 //   Implicit_DIRK_ISMAIL_7_45_embedded. 
 ButcherTableType butcher_table_type = Implicit_SDIRK_CASH_3_23_embedded;
 
-const std::string BDY_DIRICHLET = "1";
+// Problem parameters.
+const double alpha = 4.0;                         // For the nonlinear thermal conductivity.
+const double heat_src = 1.0;
 
 int main(int argc, char* argv[])
 {
@@ -81,10 +81,10 @@ int main(int argc, char* argv[])
 
   // Initial mesh refinements.
   for(int i = 0; i < INIT_GLOB_REF_NUM; i++) mesh.refine_all_elements();
-  mesh.refine_towards_boundary(BDY_DIRICHLET, INIT_BDY_REF_NUM);
+  mesh.refine_towards_boundary("Bdy", INIT_BDY_REF_NUM);
 
   // Initialize boundary conditions.
-  EssentialBCNonConst bc_essential(BDY_DIRICHLET);
+  EssentialBCNonConst bc_essential("Bdy");
   EssentialBCs bcs(&bc_essential);
 
   // Create an H1 space with default shapeset.
@@ -92,20 +92,21 @@ int main(int argc, char* argv[])
   int ndof = space.get_num_dofs();
 
   // Convert initial condition into a Solution.
-  InitialSolutionHeatTransfer sln_time_prev(&mesh);
+  CustomInitialCondition sln_time_prev(&mesh);
   Solution sln_time_new(&mesh);
   Solution time_error_fn(&mesh, 0.0);
 
   // Initialize the weak formulation
-  WeakFormHeatTransferNewtonTimedep wf(ALPHA, time_step, &sln_time_prev);
+  CustomNonlinearity lambda(alpha);
+  HermesFunction f(heat_src);
+  WeakFormsH1::DefaultWeakFormPoisson wf(HERMES_ANY, &lambda, &f);
 
   // Initialize the discrete problem.
   DiscreteProblem dp(&wf, &space);
 
   // Initialize views.
   ScalarView sview_high("Solution (higher-order)", new WinGeom(0, 0, 500, 400));
-  ScalarView sview_low("Solution (lower-order)", new WinGeom(490, 0, 500, 400));
-  ScalarView eview("Temporal error", new WinGeom(1000, 0, 500, 400));
+  ScalarView eview("Temporal error", new WinGeom(500, 0, 500, 400));
   eview.fix_scale_width(50);
 
   RungeKutta runge_kutta(&dp, &bt, matrix_solver);
@@ -131,7 +132,7 @@ int main(int argc, char* argv[])
 
     // Plot error function.
     char title[100];
-    sprintf(title, "Temporal error, t = %g", current_time + time_step);
+    sprintf(title, "Temporal error, t = %g", current_time);
     eview.set_title(title);
     AbsFilter abs_tef(&time_error_fn);
     eview.show(&abs_tef, HERMES_EPS_VERYHIGH);
@@ -160,21 +161,17 @@ int main(int argc, char* argv[])
     time_step_graph.add_values(current_time, time_step);
     time_step_graph.save("time_step_history.dat");
 
-    // Update time.
-    current_time += time_step;
 
     // Show the new time level solution.
     sprintf(title, "Solution (higher-order), t = %g", current_time);
     sview_high.set_title(title);
     sview_high.show(&sln_time_new, HERMES_EPS_HIGH);
-    sprintf(title, "Solution (lower-order), t = %g", current_time);
-    sview_low.set_title(title);
-    SumFilter sln_time_new_low(Hermes::vector<MeshFunction*>(&sln_time_new, &time_error_fn), 
-                               Hermes::vector<int>(H2D_FN_VAL, H2D_FN_VAL));
-    sview_low.show(&sln_time_new_low, HERMES_EPS_HIGH);
 
     // Copy solution for next time step.
     sln_time_prev.copy(&sln_time_new);
+
+    // Update time.
+    current_time += time_step;
 
     // Increase counter of time steps.
     ts++;

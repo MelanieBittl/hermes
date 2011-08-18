@@ -1,5 +1,6 @@
 #define HERMES_REPORT_ALL
-#include "hermes2d.h"
+#define HERMES_REPORT_FILE "application.log"
+#include "definitions.h"
 #include <stdio.h>
 
 using namespace RefinementSelectors;
@@ -7,9 +8,10 @@ using Teuchos::RCP;
 using Teuchos::rcp;
 using Hermes::EigenSolver;
 
-//  This example illustrates problems associated with automatic adaptivity 
-//  that calls an eigensolver after each mesh refinement step. Observe how 
-//  eigenfunctions associated with eigenvalues of multiplicity greater than 
+//  NOTE: This is an inofficial example. Its purpose is solely to illustrate problems 
+//  associated with repeated calls to an eigensolver in each mesh refinement step.
+//
+//  Observe how eigenfunctions associated with eigenvalues of multiplicity greater than 
 //  one change from one step to another. The underlying operator is the Laplacian,
 //  in a square with zero boundary conditions. Python and Pysparse must be installed. 
 //
@@ -58,9 +60,6 @@ const int NDOF_STOP = 100000;                     // Adaptivity process stops wh
                                                   // over this limit. This is to prevent h-adaptivity to go on forever.
 MatrixSolverType matrix_solver = SOLVER_UMFPACK;  // Possibilities: SOLVER_AMESOS, SOLVER_AZTECOO, SOLVER_MUMPS,
                                                   // SOLVER_PETSC, SOLVER_SUPERLU, SOLVER_UMFPACK.
-
-// Weak forms.
-#include "definitions.cpp"
 
 int main(int argc, char* argv[])
 {
@@ -120,8 +119,7 @@ int main(int argc, char* argv[])
   Solution sln[NUMBER_OF_EIGENVALUES], ref_sln[NUMBER_OF_EIGENVALUES];
 
   // Adaptivity loop:
-  int as = 1;
-  bool done = false;
+  int as = 1; bool done = false;
   do
   {
     info("---- Adaptivity step %d:", as);

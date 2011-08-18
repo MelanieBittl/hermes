@@ -1,6 +1,8 @@
 #define HERMES_REPORT_ALL
 #define HERMES_REPORT_FILE "application.log"
-#include "hermes2d.h"
+#include "definitions.h"
+
+using namespace RefinementSelectors;
 
 //  This example shows how to save visualization data if you are working 
 //  on a distant computer and cannot use ScalarView, OrderView, or 
@@ -32,9 +34,6 @@ const double HEATCAP = 1e2;      // Heat capacity.
 const double RHO = 3000;         // Material density.
 const double T_FINAL = 18000;    // Length of time interval in seconds.
 
-// Weak forms.
-#include "definitions.cpp"
-
 int main(int argc, char* argv[])
 {
   // Instantiate a class with global functions.
@@ -47,19 +46,19 @@ int main(int argc, char* argv[])
 
   // Perform initial mesh refinements.
   for(int i = 0; i < INIT_REF_NUM; i++) mesh.refine_all_elements();
-  mesh.refine_towards_boundary("Boundary air", INIT_REF_NUM_BDY);
-  mesh.refine_towards_boundary("Boundary ground", INIT_REF_NUM_BDY);
+  mesh.refine_towards_boundary("Boundary_air", INIT_REF_NUM_BDY);
+  mesh.refine_towards_boundary("Boundary_ground", INIT_REF_NUM_BDY);
 
   // Previous time level solution (initialized by the external temperature).
   Solution tsln(&mesh, TEMP_INIT);
 
   // Initialize the weak formulation.
   double current_time = 0;
-  CustomWeakFormHeatRK1 wf("Boundary air", ALPHA, LAMBDA, HEATCAP, RHO, time_step, 
+  CustomWeakFormHeatRK1 wf("Boundary_air", ALPHA, LAMBDA, HEATCAP, RHO, time_step, 
                            &current_time, TEMP_INIT, T_FINAL, &tsln);
 
   // Initialize boundary conditions.
-  DefaultEssentialBCConst essential_bc("Boundary ground", TEMP_INIT);
+  DefaultEssentialBCConst essential_bc("Boundary_ground", TEMP_INIT);
   EssentialBCs bcs(&essential_bc);
 
   // Initialize an H1 space with default shepeset.

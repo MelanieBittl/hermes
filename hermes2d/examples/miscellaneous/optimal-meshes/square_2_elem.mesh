@@ -8,16 +8,16 @@ vertices = [
 ]
 
 elements = [
-  [ 0, 1, 4, 5, 0 ],
-  [ 1, 2, 3, 4, 0 ]
+  [ 0, 1, 4, 5, "Mat" ],
+  [ 1, 2, 3, 4, "Mat" ]
 ]
 
 boundaries = [
-  [ 0, 1, 1 ],
-  [ 1, 2, 1 ],
-  [ 2, 3, 2 ],
-  [ 3, 4, 1 ],
-  [ 4, 5, 1 ],
-  [ 5, 0, 2 ]
+  [ 0, 1, "Bdy left right" ],
+  [ 1, 2, "Bdy left right" ],
+  [ 2, 3, "Bdy top bottom" ],
+  [ 3, 4, "Bdy left right" ],
+  [ 4, 5, "Bdy left right" ],
+  [ 5, 0, "Bdy top bottom" ]
 ]
 

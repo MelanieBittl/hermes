@@ -1,6 +1,9 @@
 Poisson Equation (03-poisson)
 -----------------------------
 
+.. popup:: '#p01-linear-03-poisson-tutorial'
+   ../../../_static/clapper.png
+
 **Git reference:** Tutorial example `03-poisson <http://git.hpfem.org/hermes.git/tree/HEAD:/hermes2d/tutorial/P01-linear/03-poisson>`_. 
 
 This example shows how to solve a simple PDE that describes stationary 
@@ -455,7 +458,7 @@ The following figure shows the corresponding Paraview visualization:
 
 .. image:: 03-poisson/vtk.png
    :align: center
-   :width: 530
+   :scale: 50%
    :alt: Solution of the Poisson equation.
 
 
@@ -473,7 +476,7 @@ Hermes' built-in OpenGL visualization looks as follows:
 
 .. image:: 03-poisson/poisson.png
    :align: center
-   :width: 400
+   :scale: 50%
    :alt: Solution of the Poisson equation.
 
 Visualization quality

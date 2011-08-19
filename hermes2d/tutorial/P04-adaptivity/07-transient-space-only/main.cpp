@@ -91,14 +91,14 @@ const double heat_src = 1.0;
 
 int main(int argc, char* argv[])
 {
+  // Instantiate a class with global functions.
+  Hermes2D hermes2d;
+
   // Choose a Butcher's table or define your own.
   ButcherTable bt(butcher_table_type);
   if (bt.is_explicit()) info("Using a %d-stage explicit R-K method.", bt.get_size());
   if (bt.is_diagonally_implicit()) info("Using a %d-stage diagonally implicit R-K method.", bt.get_size());
   if (bt.is_fully_implicit()) info("Using a %d-stage fully implicit R-K method.", bt.get_size());
-
-  // Instantiate a class with global functions.
-  Hermes2D hermes2d;
 
   // Load the mesh.
   Mesh mesh, basemesh;
@@ -163,7 +163,8 @@ int main(int argc, char* argv[])
       ndof_coarse = Space::get_num_dofs(&space);
     }
 
-    // Spatial adaptivity loop. Note: sln_time_prev must not be changed during spatial adaptivity. 
+    // Spatial adaptivity loop. Note: sln_time_prev must not be changed 
+    // during spatial adaptivity. 
     bool done = false; int as = 1;
     double err_est;
     do {
@@ -230,6 +231,8 @@ int main(int argc, char* argv[])
       // Clean up.
       delete adaptivity;
       delete ref_space;
+      if(!done)
+        delete sln_time_new.get_mesh();
     }
     while (done == false);
 

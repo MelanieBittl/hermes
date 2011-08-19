@@ -1,4 +1,8 @@
-#include "hermes2d.h"
+#define HERMES_REPORT_ALL
+#define HERMES_REPORT_FILE "application.log"
+#include "definitions.h"
+
+using namespace RefinementSelectors;
 
 // This example shows how to use the L2 finite element space and L2 shapeset.
 // As a sample problem, a continuous function x^3 + y^3 is projected onto the
@@ -13,9 +17,6 @@ const int P_INIT = 3;                             // Polynomial degree of mesh e
 MatrixSolverType matrix_solver = SOLVER_UMFPACK;  // Possibilities: SOLVER_AMESOS, SOLVER_AZTECOO, SOLVER_MUMPS,
                                                   // SOLVER_PETSC, SOLVER_SUPERLU, SOLVER_UMFPACK.
 
-// Projected function.
-#include "definitions.cpp"
-
 int main(int argc, char* argv[])
 {
   // Load the mesh.
@@ -24,7 +25,7 @@ int main(int argc, char* argv[])
   mloader.load("square.mesh", &mesh);
 
   // Perform uniform mesh refinements.
-  for (int i = 0; i<INIT_REF_NUM; i++) mesh.refine_all_elements();
+  for (int i = 0; i < INIT_REF_NUM; i++) mesh.refine_all_elements();
 
   // Create an L2 space with default shapeset.
   L2Space space(&mesh, P_INIT);
@@ -33,9 +34,6 @@ int main(int argc, char* argv[])
   BaseView bview("BaseView", new WinGeom(0, 0, 600, 500));
   bview.show(&space);
   // View::wait(H2DV_WAIT_KEYPRESS);
-
-  // Assemble and solve the finite element problem.
-  WeakForm wf_dummy;
 
   // Initialize the exact and projected solution.
   Solution sln;

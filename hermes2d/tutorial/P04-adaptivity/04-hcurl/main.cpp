@@ -1,6 +1,6 @@
 #define HERMES_REPORT_ALL
 #define HERMES_REPORT_FILE "application.log"
-#include "hermes2d.h"
+#include "definitions.h"
 
 using namespace RefinementSelectors;
 
@@ -63,9 +63,6 @@ const double MU_R   = 1.0;
 const double KAPPA  = 1.0;
 const double LAMBDA = 1.0;
 
-// Bessel functions, exact solution, and weak forms.
-#include "definitions.cpp"
-
 int main(int argc, char* argv[])
 {
   // Instantiate a class with global functions.
@@ -85,8 +82,8 @@ int main(int argc, char* argv[])
   for (int i=0; i < INIT_REF_NUM; i++)  mesh.refine_all_elements();
 
   // Initialize boundary conditions.
-  DefaultEssentialBCConst bc_essential(Hermes::vector<std::string>("Corner horizontal",
-                                                                   "Corner vertical"), 0);
+  DefaultEssentialBCConst bc_essential(Hermes::vector<std::string>("Corner_horizontal",
+                                                                   "Corner_vertical"), 0);
   EssentialBCs bcs(&bc_essential);
 
   // Create an Hcurl space with default shapeset.

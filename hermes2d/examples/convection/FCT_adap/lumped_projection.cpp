@@ -1,4 +1,3 @@
-
 #include "../hermes_common/common.h"
 #include "function/solution.h"
 #include "function/forms.h"
@@ -7,18 +6,34 @@
 class Lumped_Projection
 {
 public:
-  static void project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<Solution*> source_sols,
-                   scalar* target_vec, MatrixSolverType matrix_solver);
+  static void project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<MeshFunction *> source_meshfns,
+                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK);
 
+  static void project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<Solution *> source_sols,
+                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK);
+
+  static void project_lumped(Space* space, MeshFunction* source_meshfn,
+                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK);
+
+  static void project_lumped(Hermes::vector<Space *> spaces,
+                             Hermes::vector<Solution*> sols_src, Hermes::vector<Solution*> sols_dest,
+                             MatrixSolverType matrix_solver = SOLVER_UMFPACK);
+
+  static void project_lumped(Space * space,
+                             Solution* sol_src, Solution* sol_dest,
+                             MatrixSolverType matrix_solver = SOLVER_UMFPACK);
+
+  static void project_lumped(Hermes::vector<Space *> spaces,
+                             Hermes::vector<WeakForm::MatrixFormVol *> mfvol,
+                             Hermes::vector<WeakForm::VectorFormVol *> vfvol,
+                             Hermes::vector<MeshFunction*> source_meshfns,
+                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK);
 
  
 protected:
   static void project_internal(Hermes::vector<Space *> spaces, WeakForm *wf, scalar* target_vec,
                                MatrixSolverType matrix_solver);
-
-
-
-  // Jacobian matrix (same as stiffness matrix since projections are linear).
+  
   class ProjectionLumpedMatrixFormVol : public WeakForm::MatrixFormVol
   {
   public:
@@ -106,9 +121,8 @@ protected:
 
 
 
-
 void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakForm *wf, scalar* target_vec,
-                               MatrixSolverType matrix_solver = SOLVER_UMFPACK){
+                               MatrixSolverType matrix_solver ){
 
   unsigned int n = spaces.size();
 
@@ -123,9 +137,8 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
   // Initialize DiscreteProblem.
   DiscreteProblem* dp = new DiscreteProblem(wf, spaces);
 
-  //SparseMatrix* matrix = create_matrix(matrix_solver);
-    UMFPackMatrix* matrix = new UMFPackMatrix(); 
-  Vector* rhs = create_vector(matrix_solver);
+    	UMFPackMatrix* matrix = new UMFPackMatrix(); 
+  	Vector* rhs = create_vector(matrix_solver);
 	dp->assemble(matrix, rhs);  
 //Masslumping
 	 UMFPackMatrix* lumped_matrix = new UMFPackMatrix();   //M_L
@@ -152,8 +165,9 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
   scalar* coeff_vec =NULL; 
 
 	if(solver->solve()){ 
-		coeff_vec = solver->get_solution();	
-	}else error ("Matrix solver failed.\n");
+		coeff_vec = solver->get_solution();		
+	}
+	  else error ("Matrix solver failed.\n");
 
   if (target_vec != NULL)
     for (int i=0; i < ndof; i++) target_vec[i] = coeff_vec[i];
@@ -169,25 +183,122 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
 
 
 
-void Lumped_Projection::project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<Solution*> source_sols,
-                   scalar* target_vec, MatrixSolverType matrix_solver){
 
-  Hermes::vector<MeshFunction *> mesh_fns;
-  for(unsigned int i = 0; i < source_sols.size(); i++)
-    mesh_fns.push_back(source_sols[i]);
-
+void Lumped_Projection::project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<MeshFunction *> source_meshfns,
+                             scalar* target_vec, MatrixSolverType matrix_solver)
+{
+  _F_
    int n = spaces.size();
   // define temporary projection weak form
   WeakForm* proj_wf = new WeakForm(n);
+   if(n>1){ 
+	for (int i = 0; i < n; i++) {    
+    		proj_wf->add_matrix_form(new ProjectionLumpedMatrixFormVol(i, i));    
+    		proj_wf->add_vector_form(new ProjectionLumpedVectorFormVol(i, source_meshfns[i]));
+  	}
+	 project_internal(spaces, proj_wf, target_vec, matrix_solver);
+  }else{
+ 	int i = 0;
+  	ProjectionLumpedMatrixFormVol* form = new ProjectionLumpedMatrixFormVol(i, i);
+  	ProjectionLumpedVectorFormVol* vector = new ProjectionLumpedVectorFormVol(i, source_meshfns[i]);
+	  proj_wf->add_matrix_form(form);    
+    	proj_wf->add_vector_form(vector);
+	 project_internal(spaces, proj_wf, target_vec, matrix_solver);
+	  delete form;
+         delete vector;
+  }
+ 
+ 
+  delete proj_wf;
 
-  for (int i = 0; i < n; i++) {  
-    
-    proj_wf->add_matrix_form(new ProjectionLumpedMatrixFormVol(i, i));    
-    proj_wf->add_vector_form(new ProjectionLumpedVectorFormVol(i, mesh_fns[i]));
+
+}
+
+
+
+
+
+
+void Lumped_Projection::project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<Solution *> source_sols,
+                             scalar* target_vec, MatrixSolverType matrix_solver )
+{
+  Hermes::vector<MeshFunction *> mesh_fns;
+  for(unsigned int i = 0; i < source_sols.size(); i++)
+    mesh_fns.push_back(source_sols[i]);
+  project_lumped(spaces, mesh_fns, target_vec, matrix_solver);
+}
+
+
+void Lumped_Projection::project_lumped(Space* space, MeshFunction* source_meshfn,
+                             scalar* target_vec, MatrixSolverType matrix_solver )
+{
+  Hermes::vector<Space *> spaces;
+  spaces.push_back(space);
+  Hermes::vector<MeshFunction *> source_meshfns;
+  source_meshfns.push_back(source_meshfn);
+  project_lumped(spaces, source_meshfns, target_vec, matrix_solver);
+}
+
+
+void Lumped_Projection::project_lumped(Hermes::vector<Space *> spaces,
+                             Hermes::vector<Solution*> sols_src, Hermes::vector<Solution*> sols_dest,
+                             MatrixSolverType matrix_solver )
+{
+  _F_
+
+  scalar* target_vec = new scalar[Space::get_num_dofs(spaces)];
+  Hermes::vector<MeshFunction *> ref_slns_mf;
+  for (unsigned int i = 0; i < sols_src.size(); i++)
+    ref_slns_mf.push_back(static_cast<MeshFunction*>(sols_src[i]));
+
+  project_lumped(spaces, ref_slns_mf, target_vec, matrix_solver);
+  Solution::vector_to_solutions(target_vec, spaces, sols_dest);
+
+  delete [] target_vec;
+}
+
+void Lumped_Projection::project_lumped(Space * space,
+                             Solution* sol_src, Solution* sol_dest,
+                             MatrixSolverType matrix_solver )
+{
+  Hermes::vector<Space *> spaces;
+  spaces.push_back(space);
+  Hermes::vector<Solution *> sols_src;
+  sols_src.push_back(sol_src);
+  Hermes::vector<Solution *> sols_dest;
+  sols_dest.push_back(sol_dest);  
+  project_lumped(spaces, sols_src, sols_dest, matrix_solver);
+}
+
+void Lumped_Projection::project_lumped(Hermes::vector<Space *> spaces,
+                             Hermes::vector<WeakForm::MatrixFormVol *> mfvol,
+                             Hermes::vector<WeakForm::VectorFormVol *> vfvol,
+                             Hermes::vector<MeshFunction*> source_meshfns,
+                             scalar* target_vec, MatrixSolverType matrix_solver )
+{
+  _F_
+  unsigned int n = spaces.size();
+  unsigned int n_biforms = mfvol.size();
+  if (n_biforms == 0)
+    error("Please use the simpler version of project_global with the argument Hermes::vector<ProjNormType> proj_norms if you do not provide your own projection norm.");
+  if (n_biforms != vfvol.size())
+    error("Mismatched numbers of projection forms in project_global().");
+  if (n != n_biforms)
+    error("Mismatched numbers of projected functions and projection forms in project_global().");
+
+  // This is needed since spaces may have their DOFs enumerated only locally
+  // when they come here.
+  int ndof = Space::assign_dofs(spaces);
+
+  // Define projection weak form.
+  WeakForm* proj_wf = new WeakForm(n);
+  for (unsigned int i = 0; i < n; i++) {
+    proj_wf->add_matrix_form(mfvol[i]);
+    // FIXME
+    // proj_wf->add_vector_form(i, proj_liforms[i].first, proj_liforms[i].second, HERMES_ANY, source_meshfns[i]);
   }
 
-
   project_internal(spaces, proj_wf, target_vec, matrix_solver);
-  delete proj_wf;
+	 delete proj_wf;
 }
 

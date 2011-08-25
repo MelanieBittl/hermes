@@ -1,4 +1,5 @@
 #include "hermes2d.h"
+#include "runge_kutta.h"
 #include "weakform/weakform.h"
 #include "integrals/h1.h"
 #include "boundaryconditions/essential_bcs.h"
@@ -41,15 +42,17 @@ public:
 class CustomWeakFormRichardsRK : public WeakForm
 {
 public:
-  CustomWeakFormRichardsRK(double time_step, Solution* h_time_prev);
+  CustomWeakFormRichardsRK();
 
 private:
 
   class CustomJacobianFormVol : public WeakForm::MatrixFormVol
   {
   public:
-    CustomJacobianFormVol(int i, int j, double time_step) 
-          : WeakForm::MatrixFormVol(i, j), time_step(time_step) {};
+    CustomJacobianFormVol(int i, int j) 
+          : WeakForm::MatrixFormVol(i, j) 
+    {
+    }
 
     virtual scalar value(int n, double *wt, Func<scalar> *u_ext[], Func<double> *u, 
                          Func<double> *v, Geom<double> *e, ExtData<scalar> *ext) const;
@@ -58,15 +61,15 @@ private:
                     Func<Ord> *v, Geom<Ord> *e, ExtData<Ord> *ext) const;
 
     virtual WeakForm::MatrixFormVol* clone();
-
-    double time_step;
   };
 
   class CustomResidualFormVol : public WeakForm::VectorFormVol
   {
   public:
-    CustomResidualFormVol(int i, double time_step)
-          : WeakForm::VectorFormVol(i), time_step(time_step) {};
+    CustomResidualFormVol(int i)
+          : WeakForm::VectorFormVol(i) 
+    {
+    }
 
     virtual scalar value(int n, double *wt, Func<scalar> *u_ext[], Func<double> *v, Geom<double> *e,
                          ExtData<scalar> *ext) const;
@@ -75,8 +78,6 @@ private:
                     ExtData<Ord> *ext) const;
 
     virtual WeakForm::VectorFormVol* clone();
-
-    double time_step;
   };
 };
 

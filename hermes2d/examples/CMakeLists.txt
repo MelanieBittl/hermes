@@ -17,4 +17,5 @@ add_subdirectory(schroedinger)
 add_subdirectory(flame-propagation)
 #add_subdirectory(thermoelasticity) TODO: Convert to new forms.
 add_subdirectory(wave-equation)
+add_subdirectory(convection)
 

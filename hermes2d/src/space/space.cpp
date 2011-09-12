@@ -723,7 +723,8 @@ void Space::free_extra_data()
 {
   _F_
   for (unsigned int i = 0; i < extra_data.size(); i++)
-    delete [] (scalar*) extra_data[i];
+	//delete [] (scalar*) extra_data[i];
+    delete (scalar*) extra_data[i];
   extra_data.clear();
 }
 

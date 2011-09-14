@@ -11,11 +11,11 @@ class HERMES_API PatchSolution : public Solution
 
 	void init(Space* patch_space, Space* space, Solution* sln,scalar* coeffs, int* list,  int elems);
 
-	void init(Space* patch_space, Space* space, Solution* sln, int* list,  int elems){
+	void init(Space* patch_space, Space* space, Solution* sln, int* list,  int elems, MatrixSolverType solver_type = SOLVER_UMFPACK){
 		if ((space == NULL)||(patch_space == NULL)) error("Space == NULL in PatchSolution::init(Space* patch_space, Space* space, Solution* sln).");
 		int ndof = space->get_num_dofs();
 		scalar* coeffs= new scalar[ndof];
-		OGProjection::project_global(space, sln, coeffs, matrix_solver, HERMES_L2_NORM);
+		OGProjection::project_global(space, sln, coeffs, solver_type, HERMES_L2_NORM);
 		this->init( patch_space, space,  sln, coeffs,  list,  elems);
 		delete [] coeffs;
 

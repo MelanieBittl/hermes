@@ -1,18 +1,4 @@
-#include "../src/adapt/adapt.h"
-
-
-
-class HERMES_API PonlyAdapt : public Adapt
-{
-public:
-	  PonlyAdapt(Space* space, ProjNormType proj_norm): Adapt(space, proj_norm){	
-	} ; 
-	~PonlyAdapt(){};
- 
-bool adapt(bool* elements_to_refine);
-
-
-};
+#include "p_only_adapt.h"
 
 
 bool PonlyAdapt::adapt(bool* elements_to_refine)
@@ -64,68 +50,37 @@ int order, v_ord, h_ord;
 
 
 
-
-
-class HERMES_API ErrorEstimation : public Adapt
+double ErrorEstimation::calc_err_extrapolation(Solution *sln, Solution *rsln, bool solutions_for_adapt,
+                    unsigned int error_flags )
 {
-public:
-
- ErrorEstimation(Space* space, ProjNormType proj_norm, Element* e): Adapt(space, proj_norm){
-	elem_ex=e;
-	} ;  
-
-  ~ErrorEstimation(){	
-	elem_ex=NULL;
-	} ; 
-  
-
-  double calc_err_extrapolation(Solution *sln, Solution *rsln, bool solutions_for_adapt,
-                        unsigned int error_flags = HERMES_TOTAL_ERROR_REL | HERMES_ELEMENT_ERROR_REL)
-  {
-    return calc_err_internal(sln, rsln, NULL, solutions_for_adapt, error_flags);
-	
-  };
-
- double calc_l2_norm(Hermes::vector<Solution *> slns, Hermes::vector<Solution *> rslns,
-                              bool solutions_for_adapt, unsigned int error_flags = HERMES_TOTAL_ERROR_REL | HERMES_ELEMENT_ERROR_REL);
-
-double calc_l2_norm(Solution* sln, Solution* rsln,
-                                 bool solutions_for_adapt,
-                                   unsigned int error_flags = HERMES_TOTAL_ERROR_REL | HERMES_ELEMENT_ERROR_REL){
-
-  Hermes::vector<Solution *> slns;
-  slns.push_back(sln);
-  Hermes::vector<Solution *> rslns;
-  rslns.push_back(rsln);
-  return calc_l2_norm(slns, rslns,  solutions_for_adapt, error_flags);
+return calc_err_internal(sln, rsln, NULL, solutions_for_adapt, error_flags);
 
 };
 
+double ErrorEstimation::calc_l2_norm(Solution* sln, Solution* rsln,
+                             bool solutions_for_adapt,
+                               unsigned int error_flags){
 
-
-
-   double l2_error(MeshFunction *sln1, MeshFunction *sln2, MeshFunction *rsln1,
-                         MeshFunction *rsln2, scalar* coeffs,Space* space,bool solutions_for_adapt);
-
-
-	double l2_error(MeshFunction *sln1, MeshFunction *sln2, MeshFunction *rsln1,
-                         MeshFunction *rsln2, Space* space,bool solutions_for_adapt){
-	if (space == NULL) error("Space == NULL in  ErrorEstimation::l2_error");
-		double result =0;
-		int ndof = space->get_num_dofs();
-		scalar* coeffs= new scalar[ndof];
-		OGProjection::project_global(space, sln1, coeffs, matrix_solver, HERMES_L2_NORM);
-		result = this->l2_error(sln1, sln2, rsln1,rsln2, coeffs,space,solutions_for_adapt);
-		delete [] coeffs;
-		return result;
-
-	};
-
-protected:
-	Element* elem_ex;
+Hermes::vector<Solution *> slns;
+slns.push_back(sln);
+Hermes::vector<Solution *> rslns;
+rslns.push_back(rsln);
+return calc_l2_norm(slns, rslns,  solutions_for_adapt, error_flags);
 
 };
 
+double ErrorEstimation::l2_error(MeshFunction *sln1, MeshFunction *sln2, MeshFunction *rsln1,
+                     MeshFunction *rsln2, Space* space,bool solutions_for_adapt, MatrixSolverType solver_type){
+if (space == NULL) error("Space == NULL in  ErrorEstimation::l2_error");
+	double result =0;
+	int ndof = space->get_num_dofs();
+	scalar* coeffs= new scalar[ndof];
+	OGProjection::project_global(space, sln1, coeffs, solver_type, HERMES_L2_NORM);
+	result = this->l2_error(sln1, sln2, rsln1,rsln2, coeffs,space,solutions_for_adapt);
+	delete [] coeffs;
+	return result;
+
+};
 
 
 double ErrorEstimation::calc_l2_norm(Hermes::vector<Solution *> slns, Hermes::vector<Solution *> rslns,
@@ -260,7 +215,7 @@ double ErrorEstimation::calc_l2_norm(Hermes::vector<Solution *> slns, Hermes::ve
     error("Unknown total error type (0x%x).", error_flags & HERMES_TOTAL_ERROR_MASK);
     return -1.0;
   }*/
-	return total_norm;
+	return sqrt(total_norm);
 }
 
 
@@ -282,13 +237,13 @@ double  ErrorEstimation::l2_error(MeshFunction *sln1, MeshFunction *sln2, MeshFu
   	RefMap *rrv1 = rsln1->get_refmap();
   	RefMap *rrv2 = rsln2->get_refmap();
 
-	RefMap* refmap_ex = new RefMap();
+	RefMap* refmap_ex = new RefMap;
 	refmap_ex->set_active_element(elem_ex);
 	 
 
 	Element* el;
 	double total_error = 0.0;
-	AsmList* al_ex = new AsmList();
+	AsmList* al_ex = new AsmList;
 	space->get_element_assembly_list(elem_ex, al_ex); 
 
 	int nc = 0;

@@ -1,128 +1,4 @@
-#include "../hermes_common/common.h"
-#include "function/solution.h"
-#include "function/forms.h"
-#include "hermes2d.h"
-
-class Lumped_Projection
-{
-public:
-  static void project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<MeshFunction *> source_meshfns,
-                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK, UMFPackMatrix*  mat  = NULL);
-
-  static void project_lumped(Hermes::vector<Space *> spaces, Hermes::vector<Solution *> source_sols,
-                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK, UMFPackMatrix*  mat  = NULL);
-
-  static void project_lumped(Space* space, MeshFunction* source_meshfn,
-                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK,UMFPackMatrix*  mat  = NULL);
-
-  static void project_lumped(Hermes::vector<Space *> spaces,
-                             Hermes::vector<Solution*> sols_src, Hermes::vector<Solution*> sols_dest,
-                             MatrixSolverType matrix_solver = SOLVER_UMFPACK, UMFPackMatrix*  mat  = NULL);
-
-  static void project_lumped(Space * space,
-                             Solution* sol_src, Solution* sol_dest,
-                             MatrixSolverType matrix_solver = SOLVER_UMFPACK, UMFPackMatrix*  mat  = NULL);
-
-  static void project_lumped(Hermes::vector<Space *> spaces,
-                             Hermes::vector<WeakForm::MatrixFormVol *> mfvol,
-                             Hermes::vector<WeakForm::VectorFormVol *> vfvol,
-                             Hermes::vector<MeshFunction*> source_meshfns,
-                             scalar* target_vec, MatrixSolverType matrix_solver = SOLVER_UMFPACK, UMFPackMatrix*  mat  = NULL);
-
-  static void project_lumped_rhs(Hermes::vector<Space *> spaces, Hermes::vector<Solution *> source_sols,
-                             scalar* target_vec, MatrixSolverType matrix_solver, UMFPackMatrix*  mat );
- 
-protected:
-  static void project_internal( Hermes::vector<Space *> spaces, WeakForm *wf, scalar* target_vec,
-                               MatrixSolverType matrix_solver, UMFPackMatrix*  mat = NULL);
-
-
-
-  // Jacobian matrix (same as stiffness matrix since projections are linear).
-  class ProjectionLumpedMatrixFormVol : public WeakForm::MatrixFormVol
-  {
-  public:
-    ProjectionLumpedMatrixFormVol(int i, int j) : WeakForm::MatrixFormVol(i, j)
-    {
-      this->adapt_eval = false;      
-    }
-
-    scalar value(int n, double *wt, Func<scalar> *u_ext[], Func<double> *u, Func<double> *v,
-                 Geom<double> *e, ExtData<scalar> *ext) const
-    {      
-      
-        return lumped_projection_biform<double, scalar>(n, wt, u_ext, u, v, e, ext);
-     
-    }
-
-    Ord ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *u, Func<Ord> *v,
-            Geom<Ord> *e, ExtData<Ord> *ext) const
-    {
-          
-        return lumped_projection_biform<Ord, Ord>(n, wt, u_ext, u, v, e, ext);
-     
-    }
-
-  private:
-
-    template<typename Real, typename Scalar>
-    static Scalar lumped_projection_biform(int n, double *wt, Func<Scalar> *u_ext[], Func<Real> *u,
-                                       Func<Real> *v, Geom<Real> *e, ExtData<Scalar> *ext)
-    {
-      _F_
-      Scalar result = 0;
-      for (int i = 0; i < n; i++)
-        result += wt[i] * (u->val[i] * v->val[i]);	
-      return result;
-    }
-
-  };
-
-  // Residual.
-  class ProjectionLumpedVectorFormVol : public WeakForm::VectorFormVol
-  {
-  public:
-    ProjectionLumpedVectorFormVol(int i, MeshFunction* ext) : WeakForm::VectorFormVol(i)
-    {
-      this->adapt_eval = false;     
-      this->ext = Hermes::vector<MeshFunction *>();
-      this->ext.push_back(ext);
-    }
-
-    scalar value(int n, double *wt, Func<scalar> *u_ext[], Func<double> *v,
-                 Geom<double> *e, ExtData<scalar> *ext) const
-    {
-     
-      
-        return lumped_projection_residual<double, scalar>(n, wt, u_ext, v, e, ext);
-     
-    }
-
-    Ord ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *v,
-            Geom<Ord> *e, ExtData<Ord> *ext) const
-    {
-      
-        return lumped_projection_residual<Ord, Ord>(n, wt, u_ext, v, e, ext);
-    
-    }
-
-  private:
-
-    template<typename Real, typename Scalar>
-    Scalar lumped_projection_residual(int n, double *wt, Func<Scalar> *u_ext[], Func<Real> *v,
-                                         Geom<Real> *e, ExtData<Scalar> *ext) const
-     {
-       _F_
-       Scalar result = 0;
-       for (int i = 0; i < n; i++)
-         //result += wt[i] * (u_ext[this->i]->val[i] - ext->fn[0]->val[i]) * v->val[i];
-	result += wt[i] * (ext->fn[0]->val[i]) * v->val[i];
-       return result;
-    }
-
-   
-  };
-};
+#include "lumped_projection.h"
 
 
 
@@ -141,11 +17,11 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
 
   // Initialize DiscreteProblem.
   DiscreteProblem* dp = new DiscreteProblem(wf, spaces);
-    	UMFPackMatrix* matrix = new UMFPackMatrix();	
-  	Vector* rhs = create_vector(matrix_solver);
-	Solver* solver = NULL;  scalar* coeff_vec =NULL; 
+    	UMFPackMatrix* matrix = new UMFPackMatrix;	
+  	UMFPackVector* rhs = new UMFPackVector(ndof);
+	scalar* coeff_vec =NULL; 
 	if(mat==NULL) { 
-		UMFPackMatrix* lumped_matrix = new UMFPackMatrix();   //M_L 
+		UMFPackMatrix* lumped_matrix = new UMFPackMatrix;   //M_L 
 		dp->assemble(matrix, rhs);  
 			//Masslumping		 
 		 int size = matrix->get_size();
@@ -165,26 +41,27 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
 		 }
 
 		 lumped_matrix->create(size, size, col, row, diag);  //lumped Matrix aufstellen
-		Solver* solver = create_linear_solver(matrix_solver, lumped_matrix, rhs);
+		UMFPackLinearSolver* solver = new UMFPackLinearSolver(lumped_matrix,rhs);		
 		if(solver->solve()){ 
 			coeff_vec = solver->get_solution();		
 		}
 	  	else error ("Matrix solver failed.\n");
+		 if (target_vec != NULL)
+    		for (int i=0; i < ndof; i++) target_vec[i] = coeff_vec[i];
+		delete solver;
 		delete lumped_matrix;
-	}else{ dp->assemble(NULL, rhs);
-		Solver* solver = create_linear_solver(matrix_solver, mat, rhs);
-		if(solver->solve()){ 
-		coeff_vec = solver->get_solution();		
-		}
+	}else{ 
+		dp->assemble(NULL, rhs);
+		UMFPackLinearSolver* solver = new UMFPackLinearSolver(mat,rhs);		
+		if(solver->solve()) 
+			coeff_vec = solver->get_solution();			
 	 	 else error ("Matrix solver failed.\n");
+		 if (target_vec != NULL)
+    		for (int i=0; i < ndof; i++) target_vec[i] = coeff_vec[i];
+		delete solver;
 	}
   
- 	
-  if (target_vec != NULL)
-    for (int i=0; i < ndof; i++) target_vec[i] = coeff_vec[i];
-
   
-  delete solver;
   delete matrix;
   delete rhs;
   delete dp;
@@ -197,7 +74,7 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
 
 void Lumped_Projection::project_lumped( Hermes::vector<Space *> spaces, Hermes::vector<MeshFunction *> source_meshfns,
                              scalar* target_vec, MatrixSolverType matrix_solver, UMFPackMatrix*  mat)
-{
+{/*
   _F_
    int n = spaces.size();
   // define temporary projection weak form
@@ -220,8 +97,50 @@ void Lumped_Projection::project_lumped( Hermes::vector<Space *> spaces, Hermes::
   }
  
  
-  delete proj_wf;
+  delete proj_wf;*/
+  _F_
+  int n = spaces.size();
 
+  // define temporary projection weak form
+  WeakForm* proj_wf = new WeakForm(n);
+  ProjectionLumpedMatrixFormVol** matrix_form = new ProjectionLumpedMatrixFormVol*[n];
+  ProjectionLumpedVectorFormVol** vector_form = new ProjectionLumpedVectorFormVol*[n];
+  int found[100];
+  for (int i = 0; i < 100; i++) found[i] = 0;
+  for (int i = 0; i < n; i++)
+  {
+
+
+    found[i] = 1;
+    // Jacobian.
+	matrix_form[i] = new ProjectionLumpedMatrixFormVol(i, i);
+	proj_wf->add_matrix_form(matrix_form[i]);
+
+    // Residual.
+    vector_form[i] = new ProjectionLumpedVectorFormVol(i, source_meshfns[i]);
+	proj_wf->add_vector_form(vector_form[i]);
+
+  }
+  for (int i=0; i < n; i++)
+  {
+    if (found[i] == 0)
+    {
+      warn("Index of component: %d\n", i);
+      error("Wrong projection norm in project_global().");
+    }
+  }
+
+  project_internal(spaces, proj_wf, target_vec, matrix_solver, mat);
+
+  for (int i = 0; i < n; i++)
+  {
+	delete vector_form[i];
+	delete matrix_form[i];
+  }
+	delete [] vector_form;
+	delete [] matrix_form;
+  
+  delete proj_wf;
 
 }
 
@@ -345,13 +264,9 @@ void Lumped_Projection::project_lumped_rhs(Hermes::vector<Space *> spaces, Herme
   
 
   delete rhs;
-  delete dp;
-	
-	  delete form;
-         delete vector;
-
- 
- 
+  delete dp;	
+	delete form;
+ delete vector; 
   delete wf;
 
 

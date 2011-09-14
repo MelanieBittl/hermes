@@ -1,6 +1,7 @@
 #define HERMES_REPORT_ALL
-#include "hermes2d.h"
- #define PI (3.141592653589793) 
+#include "definitions.h"
+#include "lumped_projection.h"
+
 
 // 1. Step: (M_L/tau -theta(K+D)) u^L =   (M_L/tau + (1-theta)(K+D)) u^n
 // 2. Step : f_ij = (M_c)_ij (dt_u_L(i)- dt_u_L(j)) + D_ij (u_L(i)- u_L(j)); f_i = sum_(j!=i) alpha_ij f_ij
@@ -13,6 +14,7 @@ const int INIT_REF_NUM =5;                   // Number of initial refinements.
 const int P_INIT = 1;                             // Initial polynomial degree.
 const double time_step = 1e-3;                           // Time step.
 const double T_FINAL = 2*PI;                       // Time interval length.
+//const double T_FINAL = 0.002;
 
 
 const double NEWTON_TOL = 1e-5;                   // Stopping criterion for the Newton's method.
@@ -27,13 +29,10 @@ MatrixSolverType matrix_solver = SOLVER_UMFPACK;
 const std::string BDY_IN = "inlet";
 const std::string BDY_OUT = "outlet";
 
-// Weak forms & Projection with masslumping
-#include "definitions.cpp"
-#include "lumped_projection.cpp"
 
 //Mass lumping
 UMFPackMatrix* massLumping(UMFPackMatrix* mass_matrix){
-	 UMFPackMatrix* lumped_matrix = new UMFPackMatrix();   //M_L
+	 UMFPackMatrix* lumped_matrix = new UMFPackMatrix;   //M_L
 	 int size = mass_matrix->get_size();
 	 scalar diag[size];
 	 int nnz = mass_matrix->get_nnz();
@@ -60,7 +59,7 @@ UMFPackMatrix* artificialDiffusion(UMFPackMatrix* conv_matrix){
 	 int size = conv_matrix->get_size();
 	 int nnz = conv_matrix->get_nnz();
 	scalar a,b;
-	 UMFPackMatrix* diffusion = new UMFPackMatrix();  
+	 UMFPackMatrix* diffusion = new UMFPackMatrix;  
 	diffusion->create(size, nnz, conv_matrix->get_Ap(), conv_matrix->get_Ai(),conv_matrix->get_Ax());
 	diffusion->zero();  //matrix = 0
 	for(int i= 0; i<size; i++){
@@ -166,71 +165,138 @@ bool newton(scalar* coeff_vec, DiscreteProblem* dp, Solver* solver,  UMFPackMatr
                             UMFPackVector* rhs_const,  double newton_tol, int newton_max_iter, 
                             bool verbose) 
 {
-//rhs_const = (M/tau + (1-theta)K)  *u^n  
-//rhs = rhs_const + jac*Y^n
-//jac  = (M/tau - theta*K) 
-//Jac(Y^n) \deltaY^{n+1} = -F(Y^n) (=rhs).
-double max_allowed_residual_norm = 1e6;
-double damping_coeff = 1.0; 
+	//rhs_const = (M/tau + (1-theta)K)  *u^n  
+	//rhs = rhs_const + jac*Y^n
+	//jac  = (M/tau - theta*K) 
+	//Jac(Y^n) \deltaY^{n+1} = -F(Y^n) (=rhs).
+	double max_allowed_residual_norm = 1e6;
+	double damping_coeff = 1.0; 
 
-Hermes2D hermes2d;
+	Hermes2D hermes2d;
 
-// Obtain the number of degrees of freedom.
-    int ndof = dp->get_num_dofs();
+	// Obtain the number of degrees of freedom.
+	    int ndof = dp->get_num_dofs();
 
-scalar* rhs_var = new scalar[ndof];
-for(int i=0; i<ndof;i++) rhs_var[i]=0.0;
+	scalar* rhs_var = new scalar[ndof];
+	for(int i=0; i<ndof;i++) rhs_var[i]=0.0;
 
-  // The Newton's loop.
-  double residual_norm;
-  int it = 1;
-  while (1)
-  {	
-	rhs->zero(); rhs->add_vector(rhs_const);
-    	jac->multiply_with_vector(coeff_vec, rhs_var);
-	for(int i = 0; i<ndof;i++) rhs_var[i] *= (-1.0);	
-	rhs->add_vector(rhs_var); // rhs= -F(Y^n);
-   
-      // Calculate the l2-norm of residual vector
-      //residual_norm = Hermes2D::get_l2_norm(rhs);
-   residual_norm = hermes2d.get_l2_norm(rhs);
+	  // The Newton's loop.
+	  double residual_norm;
+	  int it = 1;
+	  while (1)
+	  {	
+		rhs->zero(); rhs->add_vector(rhs_const);
+	    	jac->multiply_with_vector(coeff_vec, rhs_var);
+		for(int i = 0; i<ndof;i++) rhs_var[i] *= (-1.0);	
+		rhs->add_vector(rhs_var); // rhs= -F(Y^n);
+	   
+	      // Calculate the l2-norm of residual vector
+	      //residual_norm = Hermes2D::get_l2_norm(rhs);
+	   residual_norm = hermes2d.get_l2_norm(rhs);
 
-    // Info for the user.
-    if (it == 1) {
-      if (verbose) info("---- Newton initial residual norm: %g", residual_norm);
-    }
-    else if (verbose) info("---- Newton iter %d, residual norm: %g", it-1, residual_norm);
+	    // Info for the user.
+	    if (it == 1) {
+	      if (verbose) info("---- Newton initial residual norm: %g", residual_norm);
+	    }
+	    else if (verbose) info("---- Newton iter %d, residual norm: %g", it-1, residual_norm);
 
- // If maximum allowed residual norm is exceeded, fail.
-    if (residual_norm > max_allowed_residual_norm) {
-      if (verbose) {
-        info("Current residual norm: %g", residual_norm);
-        info("Maximum allowed residual norm: %g", max_allowed_residual_norm);
-        info("Newton solve not successful, returning false.");
-      }
-	   return false;
-    }
+	 // If maximum allowed residual norm is exceeded, fail.
+	    if (residual_norm > max_allowed_residual_norm) {
+	      if (verbose) {
+		info("Current residual norm: %g", residual_norm);
+		info("Maximum allowed residual norm: %g", max_allowed_residual_norm);
+		info("Newton solve not successful, returning false.");
+	      }
+		   return false;
+	    }
 
 
-    // If residual norm is within tolerance, or the maximum number
-    // of iteration has been reached, then quit.
-    if ((residual_norm < newton_tol || it > newton_max_iter) && it > 1) break; 
+	    // If residual norm is within tolerance, or the maximum number
+	    // of iteration has been reached, then quit.
+	    if ((residual_norm < newton_tol || it > newton_max_iter) && it > 1) break; 
 	
-    // Solve the linear system.
-    if(!solver->solve()) error ("Matrix solver failed.\n");
+	    // Solve the linear system.
+	    if(!solver->solve()) error ("Matrix solver failed.\n");
 
-    // Add \deltaY^{n+1} to Y^n.
-        for (int i = 0; i < ndof; i++) coeff_vec[i] += damping_coeff * solver->get_solution()[i];
+	    // Add \deltaY^{n+1} to Y^n.
+		for (int i = 0; i < ndof; i++) coeff_vec[i] += damping_coeff * solver->get_solution()[i];
 
-    it++;
-  }
-  if (it >= newton_max_iter) {
-    if (verbose) info("Maximum allowed number of Newton iterations exceeded, returning false.");
-    return false;
-  }
-delete [] rhs_var;
-  return true;
+	    it++;
+	  }
+	  if (it >= newton_max_iter) {
+	    if (verbose) info("Maximum allowed number of Newton iterations exceeded, returning false.");
+	    return false;
+	  }
+	delete [] rhs_var;
+	  return true;
 }
+
+
+
+void lumped_flux_limiter(UMFPackMatrix* mass_matrix,UMFPackMatrix* lumped_matrix, scalar* u_L, scalar* u_H){
+	int ndof = mass_matrix->get_size();
+	scalar P_plus[ndof], P_minus[ndof];	
+	scalar Q_plus[ndof], Q_minus[ndof];	
+	scalar R_plus[ndof], R_minus[ndof];	
+	scalar alpha,f, plus, minus;
+	
+		//Berechnung von P&Q
+		for(int i=0; i<ndof;i++){ P_plus[i]=0.0;P_minus[i]=0.0;Q_plus[i]=0.0;Q_minus[i]=0.0;}
+		for(int i =0;i<ndof;i++){
+			for(int j =(i+1); j<ndof;j++){		
+				//f = flux[i][j];		
+				f = mass_matrix->get(i,j)*(u_H[i]- u_H[j]);
+				if(f>0.0)	{ 
+					P_plus[i]+=f;
+					P_minus[j]-=f;
+				}else if (f<0.0){
+				 	P_minus[i]+=f;
+					P_plus[j]-=f;
+				}
+				f = lumped_matrix->get(i,i)*(u_L[j]-u_L[i])*time_step; 
+				if(f>Q_plus[i]) Q_plus[i] = f;				
+				if(f<Q_minus[i]) Q_minus[i] = f;			
+				f= lumped_matrix->get(j,j)*(u_L[i]-u_L[j])*time_step; 
+				if(f>Q_plus[j]) Q_plus[j] = f;	
+				if(f<Q_minus[j]) Q_minus[j] = f;			
+			}
+		}
+		//Berechnung von R
+		for(int i=0; i<ndof;i++){
+			plus = 1.0; minus = 1.0;		
+			if(P_plus[i]!=0.0)  plus = Q_plus[i]/P_plus[i];		
+			if(P_minus[i]!=0.0) minus = Q_minus[i]/P_minus[i];			
+			if(plus>=1.0) R_plus[i]= 1.0;
+			else 	     R_plus[i]= plus;
+			if(minus>=1.0) R_minus[i]= 1.0;
+			else 	     R_minus[i]= minus;		
+		}	
+		//Berechnung von alpha & f_i
+	
+	for(int i =0;i<ndof;i++){
+		for(int j =(i+1); j<ndof;j++){				
+			f = mass_matrix->get(i,j)*(u_H[i]- u_H[j]);			
+			alpha = 1.0;
+			if( (f*(u_H[j]- u_H[i])) > 0.0) f = 0.0; //prelimiting step
+			if(f>=0.0){					
+				if(R_plus[i]>R_minus[j]) alpha = R_minus[j];
+				else 	alpha = R_plus[i];
+			}else {
+				if(R_minus[i]>R_plus[j]) alpha = R_plus[j];
+				else 	alpha = R_minus[i]; 
+			}
+			
+			u_L[i] += alpha*f/(lumped_matrix->get(i,i)*time_step);
+			u_L[j] -= alpha*f/(lumped_matrix->get(j,j)*time_step);				
+		}
+	}
+
+
+
+}
+
+
+
 
 
 int main(int argc, char* argv[])
@@ -260,7 +326,11 @@ int main(int argc, char* argv[])
 
   // Previous time level solution (initialized by the initial condition).
   CustomInitialCondition u_prev_time(&mesh);
-  
+
+  // Output solution in VTK format.
+Linearizer lin;
+bool mode_3D = true;
+//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/u_init.vtk", "Solution", mode_3D);
 
   // Initialize the weak formulation.
 CustomWeakFormMassmatrix massmatrix(time_step, &u_prev_time);
@@ -275,7 +345,7 @@ CustomWeakFormConvection convection(&u_prev_time);
 //----------------------MassLumping M_L/tau--------------------------------------------------------------------
 
   // Set up the matrix, and rhs according to the solver selection.=>For Masslumping
-  UMFPackMatrix* mass_matrix = new UMFPackMatrix();   //M_c/tau
+  UMFPackMatrix* mass_matrix = new UMFPackMatrix;   //M_c/tau
   //Vector* mass_rhs = create_vector(matrix_solver);  
    //dp_mass.assemble(mass_matrix, mass_rhs); 
 	dp_mass.assemble(mass_matrix, NULL); 	
@@ -286,7 +356,7 @@ UMFPackMatrix* lumped_matrix = massLumping(mass_matrix);
 //------------------------artificial DIFFUSION D---------------------------------------
 
   // Set up the solver, matrix, and rhs according to the solver selection.=>artificial Diffusion
-  UMFPackMatrix* conv_matrix = new UMFPackMatrix();   //K
+  UMFPackMatrix* conv_matrix = new UMFPackMatrix;   //K
   //Vector* conv_rhs = create_vector(matrix_solver);  
    //dp_convection.assemble(conv_matrix, conv_rhs,true);  //true => erzwingt Diagonleinträge ggf. = 0!
 	dp_convection.assemble(conv_matrix, NULL,true);
@@ -316,8 +386,8 @@ for(int i=0; i<ndof;i++){
 }
 */
 //--------------------------------------------------------------------------------------------
- UMFPackMatrix* low_matrix = new UMFPackMatrix();  
- UMFPackMatrix* K_D = new UMFPackMatrix();  
+ UMFPackMatrix* low_matrix = new UMFPackMatrix;  
+ UMFPackMatrix* K_D = new UMFPackMatrix;  
 K_D->create(conv_matrix->get_size(),conv_matrix->get_nnz(), conv_matrix->get_Ap(), conv_matrix->get_Ai(),conv_matrix->get_Ax());
 K_D->add_matrix(diffusion); 
 
@@ -386,27 +456,28 @@ for(int i=0; i<ndof;i++){
 
 //M_L/tau - theta(D+K)
 low_matrix->add_matrix(lumped_matrix);  //kann nun fuer alle Zeitschritte verwendet werden (ausser bei Adaptivitaet)
-
+//low_matrix->add_matrix(mass_matrix);
 //M_L/tau+(1-theta)(K+D)
 K_D->add_matrix(lumped_matrix);
+//K_D->add_matrix(mass_matrix);
 
 
   // Initialize views.
-   ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
+ ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
   Lowview.show(&u_prev_time);
   ScalarView sview("Solution", new WinGeom(0, 500, 500, 400));
-  sview.show(&u_prev_time); 
+ sview.show(&u_prev_time); 
 
 	
  	 // Previous time level solution (initialized by the initial condition).
- 		 CustomInitialCondition u_prev_time_high(&mesh);
+		 CustomInitialCondition u_prev_time_high(&mesh);
 		ConvectionForm high_convection(time_step, &u_prev_time_high);
 		  // Instantiate a class with global functions.
 		  Hermes2D hermes2d;
 		  // Project the initial condition on the FE space to obtain initial
 		  // coefficient vector for the Newton's method.		
 		  scalar* coeff_vec_newton = new scalar[ndof];
-		  OGProjection::project_global(&space, &u_prev_time_high, coeff_vec_newton, matrix_solver);
+		  OGProjection::project_global(&space, &u_prev_time_high, coeff_vec_newton, matrix_solver, HERMES_L2_NORM);
 		  // Initialize the FE problem.
 		  DiscreteProblem dp(&high_convection, &space);
 		  // Set up the solver, matrix, and rhs according to the solver selection.
@@ -416,7 +487,7 @@ K_D->add_matrix(lumped_matrix);
 		   ScalarView Hermview("hohe Ordnung", new WinGeom(0, 0, 500, 400));
 		  Hermview.show(&u_prev_time_high);
 		  bool jacobian_changed = true;
-		
+	
 
 
 
@@ -429,41 +500,54 @@ scalar* lumped_scalar = new scalar[ndof];
 UMFPackVector*  vec_rhs = new UMFPackVector(ndof);
 scalar* coeff_vec = new scalar[ndof];
 for(int i=0; i<ndof;i++) coeff_vec[i]=0.0;
+scalar* coeff_vec_2 = new scalar[ndof];
+for(int i=0; i<ndof;i++) coeff_vec_2[i]=0.0;
 
-scalar* u_L = NULL;
-//scalar* fct_scalar = new scalar[ndof];
-scalar* flux_scalar = new scalar[ndof];; 
+scalar* flux_scalar = new scalar[ndof];
 Solver* lowOrd;
-//Solver* fct;
 char title[100];
+ char filename[40];
 
 
 UMFPackVector* newton_rhs = new UMFPackVector(ndof);
-//newton_rhs->zero(); lumped_rhs->zero();
+newton_rhs->zero();
+scalar* u_L = NULL;
+//scalar* u_L = new scalar[ndof]; 
+//lowOrd = create_linear_solver(matrix_solver,low_matrix,newton_rhs);
 lowOrd = create_linear_solver(matrix_solver,low_matrix,vec_rhs);
-//fct  = create_linear_solver(matrix_solver,lumped_matrix,vec_rhs); 
+
 bool verbose = true;
 
 // Project the initial condition on the FE space->coeff_vec		
-	Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver);
-	 mass_matrix->multiply_with_scalar(time_step);  // massmatrix = M_C
-
-//Berechnung der Anfangsmasse/tau
-scalar mass_init = 0.0;
-scalar mass;
-for(int i=0; i<ndof;i++) mass_init += coeff_vec[i]*lumped_matrix->get(i,i); 
+	//Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver);
 	
+	//OGProjection::project_global(&space, &u_prev_time_high, coeff_vec, matrix_solver, HERMES_L2_NORM);
+	//OGProjection::project_global(&space, &u_prev_time, u_L, matrix_solver, HERMES_L2_NORM);
+
+
+			Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver);
+			//OGProjection::project_global(&space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);
+			//lumped_flux_limiter(mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2);
+		
+
+
+Solution::vector_to_solution(coeff_vec, &space, &u_prev_time);
+	//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/u_proj_lump.vtk", "proj. Solution", mode_3D);
+
+	//sview.show(&u_prev_time); 
 do
-{
+{	
 	  info(" Time step %d, time %3.5f", ts, current_time);  
+
 //-----------------solution of higher order with Hermes  	
 //info("------HERMES: ");
 	// Perform Newton's iteration.		
-	    if (!hermes2d.solve_newton(coeff_vec_newton, &dp, solver, matrix, rhs, jacobian_changed,
+/*	    if (!hermes2d.solve_newton(coeff_vec_newton, &dp, solver, matrix, rhs, jacobian_changed,
 				       NEWTON_TOL, NEWTON_MAX_ITER, verbose)) error("Newton's iteration failed.");
 	    // Update previous time level solution.
 	    Solution::vector_to_solution(coeff_vec_newton, &space, &u_prev_time_high);
-	
+	*/
+
 
 //-------------rhs lower Order M_L/tau+ (1-theta)(K+D) u^n------------		
 	K_D->multiply_with_vector(coeff_vec, lumped_scalar); 
@@ -474,18 +558,19 @@ do
 	  // Solve the linear system and if successful, obtain the solution. M_L/tau-theta(D+K) u^n+1=  M_L/tau+ (1-theta)(K+D) u^n	
 	if(lowOrd->solve()){ 
 		u_L = lowOrd->get_solution();  
-		if (ts > 1 && ts % 10 == 0) Solution::vector_to_solution(u_L, &space, &low_sln);	
+		//coeff_vec = lowOrd->get_solution();  
+		Solution::vector_to_solution(u_L, &space, &low_sln);	
 	  }else error ("Matrix solver failed.\n");
 
-	
-  // if (!newton(u_L, &dp_mass, lowOrd, low_matrix,newton_rhs,lumped_rhs,NEWTON_TOL, NEWTON_MAX_ITER, verbose)) error("Newton's iteration failed.");	
-	// 	Solution::vector_to_solution(u_L, &space, &low_sln);	
 
+  /* if (!newton(u_L, &dp_mass, lowOrd, low_matrix,newton_rhs,vec_rhs,NEWTON_TOL, NEWTON_MAX_ITER, verbose)) error("Newton's iteration failed.");	
+	 	Solution::vector_to_solution(u_L, &space, &low_sln);	
+		coeff_vec = u_L;*/
 
 
 	//---------------------------------------antidiffusive fluxes-----------------------------------
 		
-	 antidiffusiveFlux(mass_matrix,lumped_matrix,conv_matrix,diffusion,vec_rhs, u_L, flux_scalar);		
+	antidiffusiveFlux(mass_matrix,lumped_matrix,conv_matrix,diffusion,vec_rhs, u_L, flux_scalar);		
 	
 
 	//-----------------corrected solution-----------------------------------
@@ -499,21 +584,14 @@ do
 	 Solution::vector_to_solution(coeff_vec, &space, &u_prev_time);	
 	  }else error ("Matrix solver failed.\n");	
 	*/
-    	
+  	
 	//vielleicht geht das so schneller??????
 	for(int i= 0; i<ndof; i++) coeff_vec[i]= u_L[i]+ (flux_scalar[i]/lumped_matrix->get(i,i));
-	if (ts > 1 && ts % 10 == 0) Solution::vector_to_solution(coeff_vec, &space, &u_prev_time);
+	Solution::vector_to_solution(coeff_vec, &space, &u_prev_time);
 	
-//---------------Test fuer Massenerhaltung
-		mass = 0.0;		
-			for(int i=0; i<ndof;i++) mass += u_L[i]*lumped_matrix->get(i,i);
-			if(mass!= mass_init) printf("mass_init: %f, mass_low:%f", mass_init, mass);
-		mass = 0.0;
-			for(int i=0; i<ndof;i++) mass += coeff_vec[i]*lumped_matrix->get(i,i);
-			if(mass!= mass_init) printf("mass:%f \n", mass);
-//--------------		
 
-if (ts > 1 && ts % 10 == 0) {
+
+if (ts > 1 && ts % 1 == 0) {
 	  	// Visualize the solution.	
 		  sprintf(title, "high_Ord_Hermes Time %3.2f", current_time);
 		  Hermview.set_title(title);
@@ -537,8 +615,39 @@ if (ts > 1 && ts % 10 == 0) {
     info("Ende Zeitschritt: %i", ts-1);
 
 
+/*if (ts > 1 && ts % 50 == 0){
+        sprintf(filename, "pics/FCT/u_F%i.vtk", ts - 1);
+        lin.save_solution_vtk(&u_prev_time, filename, "u", false);
+		//sprintf(filename, "pics/hermes/u_h%i.vtk", ts - 1);
+		//lin.save_solution_vtk(&u_prev_time_high, filename, "u", false);
+}*/
+
 }
 while (current_time < T_FINAL);
+
+
+
+// Output solution in VTK format.
+
+//lin.save_solution_vtk(&u_prev_time_high, "pics/hermes/hermes_u_end.vtk", "u", mode_3D);
+//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/u_end_lump.vtk", "Solution", mode_3D);
+
+
+/*
+// Visualize the solution.	
+		  sprintf(title, "high_Ord_Hermes Time %3.2f", current_time);
+		  Hermview.set_title(title);
+		  Hermview.show(&u_prev_time_high);
+  // Visualize the solution.
+	  sprintf(title, "low_Ord Time %3.2f", current_time);
+	  Lowview.set_title(title);
+	  Lowview.show(&low_sln);
+	  // Visualize the solution.	 
+	  sprintf(title, "korrigierte Loesung: Time %3.2f", current_time);
+	  sview.set_title(title);
+	  sview.show(&u_prev_time);
+*/
+
 
   // Clean up.
   delete mass_matrix;  
@@ -567,7 +676,7 @@ delete newton_rhs;
  
 
   // Wait for the view to be closed.
-  View::wait();
+ // View::wait();
   return 0;
 }
 

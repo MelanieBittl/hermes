@@ -22,6 +22,12 @@ public:
     add_vector_form(vector_form);
   };
 
+	~CustomWeakFormLS(){
+		delete get_mfvol()[0];
+		delete get_vfvol()[0];
+		WeakForm::delete_all();
+	};
+
 private:
   class CustomWeakFormLSVol : public WeakForm::MatrixFormVol
   {
@@ -96,21 +102,21 @@ class HERMES_API DiscreteProblem_LS : public DiscreteProblem
 public:
   /// Constructors. 
   DiscreteProblem_LS(WeakForm* wf, Space* space, Element* e): DiscreteProblem(wf, space){
-			elem_ex = e;
-			//refmap_ex = new RefMap_Extrapolation(e);		
+			elem_ex = e;	
 			refmap_ex = new RefMap;	
 			pss_ex_i = new PrecalcShapeset(space->get_shapeset());
 			pss_ex_j = new PrecalcShapeset(space->get_shapeset());
-			al_ex = new AsmList();
+			al_ex = new AsmList;
 			space->get_element_assembly_list(elem_ex, al_ex); 
+			refmap_ex->set_active_element(elem_ex);
 			 };
 
   /// Destuctor.
  virtual ~DiscreteProblem_LS(){	
-		if(refmap_ex!=NULL){ delete refmap_ex; refmap_ex=NULL;}
-		if(pss_ex_i!=NULL){delete pss_ex_i; pss_ex_i=NULL;}
-		if(pss_ex_j!=NULL){delete pss_ex_j; pss_ex_j =NULL;}
-		if(al_ex!=NULL){delete al_ex; al_ex =NULL;}
+		 delete refmap_ex; 
+		delete pss_ex_i; 
+		delete pss_ex_j; 
+		delete al_ex; 
 	};
 
   void create_sparse_structure(SparseMatrix* mat, Vector* rhs = NULL);
@@ -122,7 +128,6 @@ public:
 
 protected:	
 	Element* elem_ex;	//Element e bzgl dessen Basis extrapoliert wird
-	//RefMap_Extrapolation* refmap_ex;   //RefMap bzgl elem_ex;
 	RefMap* refmap_ex;   //RefMap bzgl elem_ex;
 	PrecalcShapeset* pss_ex_i ;       //PrecalcShapeset  bzgl elem_ex
 	PrecalcShapeset* pss_ex_j ;       //PrecalcShapeset bzgl elem_ex
@@ -198,11 +203,13 @@ void DiscreteProblem_LS::assemble_all(SparseMatrix* mat, WeakForm::MatrixFormVol
 	pss_ex_i->set_active_element(elem_ex);
 	pss_ex_j->set_active_element(elem_ex);	
     quad->set_mode(elem_ex->get_mode());
-	refmap_ex->set_active_element(elem_ex);
+
+	
 	 refmap_ex->set_quad_2d(quad);
+	refmap_ex->set_active_element(elem_ex);
 
 	Element* el;
-	RefMap* refmap = new RefMap();
+	RefMap* refmap = new RefMap;
 	PrecalcShapeset* pss = new PrecalcShapeset(space->get_shapeset());
 	Quad2D* quad_e = pss->get_quad_2d(); 
 	AsmList* ai = al_ex;
@@ -217,8 +224,9 @@ void DiscreteProblem_LS::assemble_all(SparseMatrix* mat, WeakForm::MatrixFormVol
     int np = quad_e->get_num_points(o);
   // printf("\n el->id= %i, np = %i, o = %i\n",el->id, np, o);
 	
-	refmap->set_active_element(el);
+
 	refmap->set_quad_2d(quad_e);
+	refmap->set_active_element(el);
 
 	double3* quad_points = refmap->get_quad_2d()->get_points(o);  //Quadraturpunkte bzgl e!
     double* x_phys = refmap->get_phys_x(o);   //physikalische Koordinaten von e
@@ -368,11 +376,11 @@ void DiscreteProblem_LS::assemble_all(SparseMatrix* mat, WeakForm::MatrixFormVol
 class HERMES_API LSSolution : public Solution
 {
  public:
-	  LSSolution(Mesh* mesh, Element* e): Solution(mesh) {
-  		//this->refmap = new RefMap_Extrapolation(e);			
+	  LSSolution(Mesh* mesh, Element* e): Solution(mesh) {		
 		elem_ex = e;
-		refmap_ex = new RefMap();
-		coeff_basis = NULL;		
+		refmap_ex = new RefMap;
+		coeff_basis = NULL;	
+		refmap_ex->set_active_element(elem_ex);	
 		}; 
 
   
@@ -390,7 +398,7 @@ class HERMES_API LSSolution : public Solution
 		elem_ex = e;
 	};
 
-	void LS_project(Solution* u_h, Space* space, MatrixSolverType matrix_solver = SOLVER_UMFPACK);
+	void LS_project(Solution* u_h, Space* space, MatrixSolverType solver_type = SOLVER_UMFPACK);
 	void init(Space* space, scalar* coeffs);  
 	
 	scalar* get_coeff_basis(){
@@ -484,6 +492,9 @@ void LSSolution::init(Space* space, scalar* coeffs){
 
 	Quad2D* quad_e = &g_quad_2d_cheb;
 
+	 refmap_ex->set_quad_2d(quad);
+	refmap_ex->set_active_element(elem_ex);
+
   for_all_active_elements(e, mesh)
   {
     mode = e->get_mode();
@@ -491,16 +502,16 @@ void LSSolution::init(Space* space, scalar* coeffs){
     o = elem_orders[e->id];
     int np = quad->get_num_points(o);
 	
-	refmap->set_active_element(e);
+
 	refmap->set_quad_2d(quad_e);
+	refmap->set_active_element(e);
+
 	double3* quad_points = refmap->get_quad_2d()->get_points(o);  //Quadraturpunkte bzgl e!
     double* x_phys = refmap->get_phys_x(o);   //physikalische Koordinaten von e
 	double* y_phys = refmap->get_phys_y(o);
 	double x, y;
 	double3* new_quad_points = new double3[np];
 
-	refmap_ex->set_active_element(elem_ex);
-	 refmap_ex->set_quad_2d(quad);
 	for(int i = 0; i<np; i++){ //Transformation von physikalischen Koordinaten von e, auf Referenzelement von elem_ex		
 		refmap_ex->untransform(elem_ex,x_phys[i],y_phys[i], x, y ); 
 		new_quad_points[i][0]= x;
@@ -549,22 +560,22 @@ void LSSolution::init(Space* space, scalar* coeffs){
 
   
 
-void LSSolution::LS_project(Solution* u_h, Space* space, MatrixSolverType matrix_solver){
+void LSSolution::LS_project(Solution* u_h, Space* space, MatrixSolverType solver_type){
 
 	if(elem_ex==NULL)error("LSSolution::LS_project(): elem_ex =NULL");
 	CustomWeakFormLS* wf = new CustomWeakFormLS(u_h); 
 	 DiscreteProblem_LS* dp = new DiscreteProblem_LS(wf, space, elem_ex);
-	SparseMatrix* mat = create_matrix(matrix_solver);  
-	Vector* rhs = create_vector(matrix_solver); 	
+	SparseMatrix* mat = create_matrix(solver_type);  
+	Vector* rhs = create_vector(solver_type); 	
 
     dp->create_sparse_structure(mat,rhs);	
 	dp->assemble_all(mat, wf->get_mfvol()[0], rhs, wf->get_vfvol()[0]);
 
-	Solver* solver = create_linear_solver(matrix_solver, mat, rhs);
+	Solver* solver = create_linear_solver(solver_type, mat, rhs);
 	scalar* coeff_vec =NULL;
 	if(solver->solve()){ 
 			coeff_vec = solver->get_solution();		
-		}else error("solver doesn't work  in LS_project(Solution* u_h, Space* space, MatrixSolverType matrix_solver)");
+		}else error("solver doesn't work  in LS_project(Solution* u_h, Space* space, MatrixSolverType solver_type)");
 	
 	/*int ndof = mat->get_size();
 	for(int i = 0; i<ndof; i++) printf("LS-coeff: %f, ", coeff_vec[i]);
@@ -580,7 +591,7 @@ void LSSolution::LS_project(Solution* u_h, Space* space, MatrixSolverType matrix
 	int ndof = mat->get_size();
 	UMFPackVector* residual = new UMFPackVector(ndof);	
 	residual->zero();
-	Solver* solver_newton = create_linear_solver(matrix_solver, mat, residual);
+	Solver* solver_newton = create_linear_solver(solver_type, mat, residual);
 	scalar* sln_newton = new scalar[ndof];
 	for(int i = 0;i<ndof;i++) sln_newton[i] = coeff_vec[i];
 	
@@ -636,11 +647,8 @@ void LSSolution::LS_project(Solution* u_h, Space* space, MatrixSolverType matrix
 
 	this->init(space,coeff_vec);
 
-
-
-	wf->delete_all();
-	delete wf;
 	delete dp;
+	delete wf;	
 	delete mat;
 	delete rhs;
 	delete solver;

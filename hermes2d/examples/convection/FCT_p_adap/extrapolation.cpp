@@ -43,11 +43,11 @@ void RefMap_Extrapolation::jac_at_point(double xi1, double xi2, double& x, doubl
 class HERMES_API ExtrapolationSolution : public Solution
 {
  public:
-	  ExtrapolationSolution(Mesh* mesh, Element* e): Solution(mesh) {
-  		//this->refmap = new RefMap_Extrapolation(e);	
-		refmap_ex= new RefMap();		
+	  ExtrapolationSolution(Mesh* mesh, Element* e): Solution(mesh) {	
+		refmap_ex= new RefMap;	
 		elem_ex = e;
-		coeff_basis = NULL;		
+		coeff_basis = NULL;	
+		refmap_ex->set_active_element(elem_ex);	
 		};   
 	  ~ExtrapolationSolution(){
 			if(coeff_basis!=NULL){ 
@@ -68,7 +68,7 @@ class HERMES_API ExtrapolationSolution : public Solution
 		u_h = u;
 	
 	};	
-	void init_extrapolation(Space* space);
+	void init_extrapolation(Space* space, MatrixSolverType solver_type = SOLVER_UMFPACK);
 
 	void init_zero(Space* space);
 
@@ -87,7 +87,7 @@ protected:
 };
 
 
-void ExtrapolationSolution::init_extrapolation(Space* space){   	
+void ExtrapolationSolution::init_extrapolation(Space* space, MatrixSolverType solver_type){   	
   // sanity check
     if (space == NULL) error("Space == NULL in ExtrapolationSolution::init_extrapolation(Space* space).");
 	  if (space->get_mesh() == NULL) error("Mesh == NULL in ExtrapolationSolution::init_extrapolation(Space* space)");
@@ -113,7 +113,7 @@ void ExtrapolationSolution::init_extrapolation(Space* space){
   scalar* coeffs= new scalar[num_dofs];
   for(int i = 0; i< num_dofs; i++) coeffs[i]= 0.0;
 
-	OGProjection::project_global(space,u_h, coeffs, matrix_solver, HERMES_L2_NORM);
+	OGProjection::project_global(space,u_h, coeffs, solver_type, HERMES_L2_NORM);
 
   // copy the mesh  
   mesh = space->get_mesh();
@@ -171,23 +171,24 @@ void ExtrapolationSolution::init_extrapolation(Space* space){
 
 	Quad2D* quad_e = &g_quad_2d_cheb;
 
+	 refmap_ex->set_quad_2d(quad);
+	refmap_ex->set_active_element(elem_ex);
+
   for_all_active_elements(e, mesh)
   {
     mode = e->get_mode();
     quad_e->set_mode(mode);
     o = elem_orders[e->id];
-    int np = quad->get_num_points(o);
-	
-	refmap->set_active_element(e);
+    int np = quad->get_num_points(o);	
+
 	refmap->set_quad_2d(quad_e);
+	refmap->set_active_element(e);
+
 	double3* quad_points = refmap->get_quad_2d()->get_points(o);  //Quadraturpunkte bzgl e!
     double* x_phys = refmap->get_phys_x(o);   //physikalische Koordinaten von e
 	double* y_phys = refmap->get_phys_y(o);
 	double x, y;
 	double3* new_quad_points = new double3[np];
-
-	refmap_ex->set_active_element(elem_ex);
-	 refmap_ex->set_quad_2d(quad);
 
 	for(int i = 0; i<np; i++){ //Transformation von physikalischen Koordinaten von e, auf Referenzelement von elem_ex
 		refmap_ex->untransform(elem_ex,x_phys[i],y_phys[i], x, y ); 
@@ -320,6 +321,9 @@ void ExtrapolationSolution::init_zero(Space* space){  //erstmal mit 0 initialisi
 
 	Quad2D* quad_e = &g_quad_2d_cheb;
 
+	 refmap_ex->set_quad_2d(quad);
+	refmap_ex->set_active_element(elem_ex);
+
   for_all_active_elements(e, mesh)
   {
     mode = e->get_mode();
@@ -327,16 +331,15 @@ void ExtrapolationSolution::init_zero(Space* space){  //erstmal mit 0 initialisi
     o = elem_orders[e->id];
     int np = quad->get_num_points(o);
 	
-	refmap->set_active_element(e);
+
 	refmap->set_quad_2d(quad_e);
+	refmap->set_active_element(e);
+
 	double3* quad_points = refmap->get_quad_2d()->get_points(o);  //Quadraturpunkte bzgl e!
     double* x_phys = refmap->get_phys_x(o);
 	double* y_phys = refmap->get_phys_y(o);
 	double x, y;
 	double3* new_quad_points = new double3[np];
-
-	refmap_ex->set_active_element(elem_ex);
-	 refmap_ex->set_quad_2d(quad);
 
 	for(int i = 0; i<np; i++){ //Transformation von physikalischen Koordinaten von e, auf Referenzelement von elem_ex
 		refmap_ex->untransform(elem_ex,x_phys[i],y_phys[i], x, y ); 

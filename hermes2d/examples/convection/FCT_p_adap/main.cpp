@@ -8,8 +8,8 @@
 // 2. Step : f_ij = (M_c)_ij (dt_u_L(i)- dt_u_L(j)) + D_ij (u_L(i)- u_L(j)); f_i = sum_(j!=i) alpha_ij f_ij
 // 3. Step:  M_L u^(n+1) = M_L u^L + tau * f 
 
-const int INIT_REF_NUM =3;                   // Number of initial refinements.
-const int P_INIT = 3;                             // Initial polynomial degree.
+const int INIT_REF_NUM =5;                   // Number of initial refinements.
+const int P_INIT = 2;                             // Initial polynomial degree.
 const double time_step = 1e-3;                           // Time step.
 
 const double T_FINAL = 2*PI;                       // Time interval length.
@@ -18,11 +18,11 @@ const double T_FINAL = 2*PI;                       // Time interval length.
 const double NEWTON_TOL = 1e-5;                   // Stopping criterion for the Newton's method.
 const int NEWTON_MAX_ITER = 20;                  // Maximum allowed number of Newton iterations.
 
-const double P_ADAP_TOL_INIT = 0.9;
+const double P_ADAP_TOL_INIT = 0.5;
 const double P_ADAP_TOL = P_ADAP_TOL_INIT;
-const int P_ADAP_MAX_ITER = 10;
+const int P_ADAP_MAX_ITER = 5;
 
-const int UNREF_FREQ = 5;                         // Every UNREF_FREQth time step the mesh is derefined.
+const int UNREF_FREQ = 10;                         // Every UNREF_FREQth time step the mesh is derefined.
 
 
 const double theta = 0.5;    // theta-Schema fuer Zeitdiskretisierung (theta =0 -> explizit, theta=1 -> implizit)
@@ -85,10 +85,10 @@ CustomWeakFormConvection convection(&u_prev_time);
   // Output solution in VTK format.
 Linearizer lin;
 bool mode_3D = true;
-//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/init_padap.vtk", "u", mode_3D);
+lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/init_padap_p2ref5.vtk", "u", mode_3D);
 
   // Initialize views.
-	ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
+/*	ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
 	//Lowview.show(&u_prev_time, HERMES_EPS_HIGH);
 	ScalarView sview("Solution", new WinGeom(0, 500, 500, 400));
 	//sview.show(&u_prev_time, HERMES_EPS_HIGH); 
@@ -96,7 +96,7 @@ bool mode_3D = true;
 	OrderView mview("mesh", new WinGeom(0, 0, 350, 350));
 	mview.show(&space);
 
-	
+*/	
 
 
 
@@ -221,8 +221,8 @@ do
 				lumped_flux_limiter(&dof_list,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
 									P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus );
 				//OGProjection::project_global(&space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
-				Solution::vector_to_solution(coeff_vec, &space, &ref_sln);
-				pview.show(&ref_sln);
+				//Solution::vector_to_solution(coeff_vec, &space, &ref_sln);
+				//pview.show(&ref_sln);
 				}
 				
 			
@@ -263,14 +263,14 @@ do
 
 
 			 // Visualize the solution.
-		  sprintf(title, "low_Ord Time %3.2f", current_time);
+		/*  sprintf(title, "low_Ord Time %3.2f", current_time);
 			  Lowview.set_title(title);
 			 Lowview.show(&low_sln);	 
 			  sprintf(title, "korrigierte Loesung: Time %3.2f", current_time);
 			  sview.set_title(title);
 			  sview.show(&ref_sln);
 				mview.show(&space);
-
+*/
 
 		//View::wait(HERMES_WAIT_KEYPRESS);
 
@@ -307,7 +307,7 @@ do
 }
 while (current_time < T_FINAL);
 
-//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/end_padap.vtk", "ref4_p3", mode_3D);
+lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/end_padap_p2ref5.vtk", "ref5_p2", mode_3D);
 
 	if(coeff_vec!=NULL) delete [] coeff_vec;
 	delete mass_matrix;  

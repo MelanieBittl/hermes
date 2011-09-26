@@ -34,7 +34,7 @@ void Lumped_Projection::project_internal(Hermes::vector<Space *> spaces, WeakFor
 		    row[i]= i;
 		    col[i]=i;
 		 }
-		col[size]=size;// letzter Eintrag bezieht sich auf nichts(Ende der Matrix)!
+		col[size]=size;// letzter Eintrag bezieht sich auf nichts(Ende der Matrix)= Anzahl der Eintraege!
 	
 		 for(int i = 0; i<nnz; i++){    
 		    diag[matrix->get_Ai()[i]] += matrix->get_Ax()[i]; 

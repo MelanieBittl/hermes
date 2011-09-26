@@ -338,7 +338,7 @@ while (current_time < T_FINAL);
 	      ordview.show(&space);*/
 info("End-dofs, max: %d", max_dof);
 
-lin.save_solution_vtk(&sln_prev_time, "/space/melli/pics_hermes/end_hadap.vtk", "u", mode_3D);
+//lin.save_solution_vtk(&sln_prev_time, "/space/melli/pics_hermes/end_hadap.vtk", "u", mode_3D);
 	    
 		delete ref_sln.get_mesh(); 
 		delete mass_matrix;

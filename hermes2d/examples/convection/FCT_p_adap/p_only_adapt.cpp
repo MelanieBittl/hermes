@@ -1,7 +1,7 @@
 #include "p_only_adapt.h"
 
 
-bool PonlyAdapt::adapt(bool* elements_to_refine)
+bool PonlyAdapt::adapt(int* elements_to_refine)
 {  info("p-adapt");
 	if(elements_to_refine==NULL) return false;
 	  //get meshes
@@ -15,7 +15,22 @@ int order, v_ord, h_ord;
   //apply refinements
 	Element* e;
 	for_all_active_elements(e, space->get_mesh()){
-		if(elements_to_refine[e->id] == true) {			
+		if(elements_to_refine[e->id] == 2) {			//refine
+			if(e->is_triangle()==true){
+				order = space->get_element_order(e->id); 
+				if(order >=1){
+					space->set_element_order_internal(e->id, order+1);
+					changed = true;
+				}
+			}else if(e->is_quad()==true){
+				v_ord = H2D_GET_V_ORDER(space->get_element_order(e->id));
+				h_ord = H2D_GET_H_ORDER(space->get_element_order(e->id));
+				order = H2D_MAKE_QUAD_ORDER(h_ord+1, v_ord+1);
+					space->set_element_order_internal(e->id, order);
+					changed = true;
+				}
+								
+			}else if(elements_to_refine[e->id] == 0) {			//coarse
 			if(e->is_triangle()==true){
 				order = space->get_element_order(e->id); 
 				if(order >1){
@@ -25,22 +40,21 @@ int order, v_ord, h_ord;
 			}else if(e->is_quad()==true){
 				v_ord = H2D_GET_V_ORDER(space->get_element_order(e->id));
 				h_ord = H2D_GET_H_ORDER(space->get_element_order(e->id));
-				if((v_ord>1)||(h_ord>1)){				
-					if((v_ord<=1)&&(h_ord>1))  order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord);
-					else if((h_ord<=1)&&(v_ord>1))   order = H2D_MAKE_QUAD_ORDER(h_ord, v_ord-1);
-					else order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord-1);
-					space->set_element_order_internal(e->id, order);
-					changed = true;
+				order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord-1);
+					if((v_ord >1)&&(h_ord>1)){
+						space->set_element_order_internal(e->id, order);
+						changed = true;
+					}
 				}
 								
-			}			
+			}		
 		
 		}
-	}  
-	if(changed==false){ info("nothing to refine");return false;}
+	  
+	if(changed==false){ info("nothing to refine/coarse");return false;}
 
   // in singlemesh case, impose same orders across meshes
-  homogenize_shared_mesh_orders(meshes);
+ // homogenize_shared_mesh_orders(meshes);
 
   // since space changed, assign dofs:
   Space::assign_dofs(this->spaces);

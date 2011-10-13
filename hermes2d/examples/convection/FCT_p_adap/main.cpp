@@ -14,13 +14,14 @@ const int P_MAX = 4;                        // Initial polynomial degree.
 const double time_step = 1e-3;                           // Time step.
 
 const double T_FINAL = 2*PI;                       // Time interval length.
-//const double T_FINAL = 0.004; 
+//const double T_FINAL = PI*0.5; 
 
 const double NEWTON_TOL = 1e-5;                   // Stopping criterion for the Newton's method.
 const int NEWTON_MAX_ITER = 20;                  // Maximum allowed number of Newton iterations.
 
 const double P_ADAP_TOL_LS = 0.9;
-const double P_ADAP_TOL_EX = 0.7;
+const double P_ADAP_TOL_EX = 0.8;     //*err_max
+const double P_ADAP_TOL_EX_2 = 0.5;   //*Anzahl Elementen (moeglichkeit zum verfeinern)
 const int P_ADAP_MAX_ITER = 5;
 
 const double EPS = 1e-10;
@@ -49,9 +50,6 @@ const std::string BDY_OUT = "outlet";
 
 
 
-
-
-
 int main(int argc, char* argv[])
 {
   // Load the mesh.
@@ -69,7 +67,9 @@ int main(int argc, char* argv[])
   
   // Create an H1 space with default shapeset.
   H1Space space(&mesh, &bcs, P_INIT);
+
   int ndof = space.get_num_dofs();
+
   info("ndof = %d", ndof);
 
  // BaseView mview("Hello world!", new WinGeom(700, 700, 500, 500));
@@ -86,10 +86,10 @@ CustomWeakFormMassmatrix massmatrix(time_step, &u_prev_time);
 CustomWeakFormConvection convection(&u_prev_time);
 
   // Output solution in VTK format.
-/*Linearizer lin;
+Linearizer lin;
 bool mode_3D = true;
 lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/init_padap_neu.vtk", "u", mode_3D);
-*/
+
   // Initialize views.
 	ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
 	//Lowview.show(&u_prev_time, HERMES_EPS_HIGH);
@@ -105,8 +105,7 @@ lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/init_p
 
 
 		  // Initialize the FE problem.
-	DiscreteProblem* dp_mass = new DiscreteProblem(&massmatrix, &space);
-	DiscreteProblem* dp_convection = new DiscreteProblem(&convection, &space);
+
 	UMFPackMatrix* mass_matrix = new UMFPackMatrix;   //M_c/tau
 	UMFPackMatrix* conv_matrix = new UMFPackMatrix;   //K
 	UMFPackMatrix* low_matrix = new UMFPackMatrix;  
@@ -119,8 +118,9 @@ lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/init_p
 	double* elements_error_ex = new double[space.get_mesh()->get_max_element_id()+1];	
 	double* elements_error_ls = new double[space.get_mesh()->get_max_element_id()+1];
 
+	int* elements_to_refine_old = new int[space.get_mesh()->get_max_element_id()+1];
 
-for(int i = 0; i <= space.get_mesh()->get_max_element_id(); i++) elements_to_refine[i]= 2;
+
 
 
 
@@ -132,59 +132,67 @@ for(int i = 0; i <= space.get_mesh()->get_max_element_id(); i++) elements_to_ref
 	char title[100];
 	bool changed = true;
 	int ps = 1;  //p-adapt-schritte
+	int max_p = P_MAX;
 
-	PonlyAdapt* adapting = new PonlyAdapt(&space, HERMES_L2_NORM);
 	
-		while((changed ==true)&&(ps<=P_ADAP_MAX_ITER)){
-			 changed = p_adap(&space, &u_prev_time, NULL, P_ADAP_TOL_LS,P_ADAP_TOL_EX, adapting,elements_to_refine, 
-										elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements);
-			mview.show(&space);
-			ps++;
-		}
-		if(ndof!=space.get_num_dofs()){ changed =true;ndof = space.get_num_dofs();}
-		else changed = false;
-	
-	for(int i = 0; i <= space.get_mesh()->get_max_element_id(); i++) elements_to_refine[i]= 2;
-	
-	//Lowview.show(&u_prev_time, HERMES_EPS_HIGH);
 
-    scalar* coeff_vec = new scalar[ndof];
-	for(int i=0; i<ndof;i++) coeff_vec[i]=0.0;	
 
 		//Durchlaufen und p bestimmen: in dof_list dof von vertex-basisfunction speichern 
 	AsmList al;	
 	AsmList dof_list;
-	p1_list(&space, &dof_list, &al,&p1_elements );
+	int ref_ndof;
+
 
 //Timestep loop
 do
-{		// info(" Time step %d, time %3.5f", ts, current_time); 
-	ps=1; 
+{	 info(" Time step %d, time %3.5f", ts, current_time); 
 
-	    // Periodic global derefinement. 
-    if (ts > 1 && ts % UNREF_FREQ == 0) 
-    {  info("Global mesh derefinement.");
-		space.set_uniform_order(P_INIT);
-      ndof = space.get_num_dofs();
-	if(coeff_vec!=NULL){ delete [] coeff_vec; 	coeff_vec = NULL;}			
-		coeff_vec = new scalar[ndof];
-		for(int i=0; i<ndof;i++) coeff_vec[i]=0.0;
-		p1_list(&space, &dof_list, &al,&p1_elements );
-		changed = true;
-    }
+	H1Space* ref_space = new H1Space(&mesh, &bcs, P_INIT);
+	PonlyAdapt* adapting = new PonlyAdapt(ref_space, HERMES_L2_NORM);
+	DiscreteProblem* dp_mass = new DiscreteProblem(&massmatrix, ref_space);
+	DiscreteProblem* dp_convection = new DiscreteProblem(&convection, ref_space);
+
+	ps=1; 
+	changed = true;
+	for(int i = 0; i <= space.get_mesh()->get_max_element_id(); i++) elements_to_refine[i]= 2;
+		while((changed ==true)&&(ps<=P_ADAP_MAX_ITER)){
+			info("init- adap- step %d, timestep %d", ps, ts);
+			ref_ndof = ref_space->get_num_dofs();
+			scalar* coeff_vec = new scalar[ref_ndof];
+			for(int i=0; i<ref_ndof;i++) coeff_vec[i]=0.0;		
+				OGProjection::project_global(ref_space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
+
+			 changed = p_adap(ref_space, &u_prev_time, coeff_vec, P_ADAP_TOL_LS,P_ADAP_TOL_EX, P_ADAP_TOL_EX_2,adapting,elements_to_refine, NULL,
+										elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements, max_p);
+			mview.show(ref_space);
+			delete [] coeff_vec;
+			ps++;
+		}
+	changed =true;
+	ref_ndof = ref_space->get_num_dofs();
 
 	
+		for(int i = 0; i <= space.get_mesh()->get_max_element_id(); i++){
+						elements_to_refine_old[i]= elements_to_refine[i];
+						 elements_to_refine[i]= 2;
+		}
+
+		scalar* coeff_vec = new scalar[ref_ndof];
+		for(int i=0; i<ref_ndof;i++) coeff_vec[i]=0.0;	
+		p1_list(ref_space, &dof_list, &al,&p1_elements );
+		ps=1; 
+
 //Adaptivity loop
 	do
 	{		info(" adap- step %d, timestep %d", ps, ts); 
-			scalar* lumped_scalar = new scalar[ndof];
-			UMFPackVector* vec_rhs = new UMFPackVector(ndof);
-			scalar* coeff_vec_2 = new scalar[ndof];
-			for(int i=0; i<ndof;i++) coeff_vec_2[i]=0.0;
-			scalar* flux_scalar = new scalar[ndof]; 
-		scalar* P_plus = new scalar[ndof]; scalar* P_minus = new scalar[ndof];
-		scalar* Q_plus = new scalar[ndof]; scalar* Q_minus = new scalar[ndof];	
-		scalar* R_plus = new scalar[ndof]; scalar* R_minus = new scalar[ndof];	
+			scalar* lumped_scalar = new scalar[ref_ndof];
+			UMFPackVector* vec_rhs = new UMFPackVector(ref_ndof);
+			scalar* coeff_vec_2 = new scalar[ref_ndof];
+			for(int i=0; i<ref_ndof;i++) coeff_vec_2[i]=0.0;
+			scalar* flux_scalar = new scalar[ref_ndof]; 
+		scalar* P_plus = new scalar[ref_ndof]; scalar* P_minus = new scalar[ref_ndof];
+		scalar* Q_plus = new scalar[ref_ndof]; scalar* Q_minus = new scalar[ref_ndof];	
+		scalar* R_plus = new scalar[ref_ndof]; scalar* R_minus = new scalar[ref_ndof];	
 
 				//----------------------MassLumping M_L/tau--------------------------------------------------------------------
 			  // Set up the matrix, and rhs according to the solver selection.=>For Masslumping
@@ -221,31 +229,31 @@ do
 			mass_matrix->multiply_with_scalar(time_step);  // massmatrix = M_C
 		
 			// Project the initial condition on the FE space->coeff_vec	
-			/*if((changed==true)||(ts==1)) {
-				Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
-					
-			}*/	
+		
 				/*UMFPackMatrix* proj_matrix = pure_p1_massLumping(&dof_list,mass_matrix);
 				Lumped_Projection::project_lumped_rhs(&space, &u_prev_time, coeff_vec, matrix_solver, proj_matrix);
 				OGProjection::project_global(&space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);		
 				lumped_flux_limiter(&dof_list,mass_matrix, proj_matrix, coeff_vec, coeff_vec_2);
 				*/		
-			//if(ts==1)Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
-			//else if(changed==true){	
-			if((changed==true)||(ts==1)) {	
-			Lumped_Projection::project_lumped(&space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
-				OGProjection::project_global(&space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);
+	/*	if(ts==1){
+			Lumped_Projection::project_lumped(ref_space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
+					OGProjection::project_global(ref_space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);
 				lumped_flux_limiter(&dof_list,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
 									P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus );
-				//OGProjection::project_global(&space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
-				Solution::vector_to_solution(coeff_vec, &space, &ref_sln);
-				pview.show(&ref_sln);
-				}
+				Solution::vector_to_solution(coeff_vec, ref_space, &ref_sln);
+			pview.show(&ref_sln);
+			}else if(changed==true){*/
+	if((changed==true)||(ts==1)) {	
+		Lumped_Projection::project_lumped(ref_space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
+				OGProjection::project_global(ref_space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);
+			lumped_flux_limiter(&dof_list,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
+									P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus );
+				//OGProjection::project_global(ref_space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
+				Solution::vector_to_solution(coeff_vec, ref_space, &ref_sln);
+			pview.show(&ref_sln);
+			}
 				
-			
-
-
-
+	
 
 	//-------------rhs lower Order M_L/tau+ (1-theta)(K+D) u^n------------		
 			lowmat_rhs->multiply_with_vector(coeff_vec, lumped_scalar); 
@@ -257,41 +265,40 @@ do
 			UMFPackLinearSolver* lowOrd = new UMFPackLinearSolver(low_matrix,vec_rhs);	
 			if(lowOrd->solve()){ 
 				u_L = lowOrd->get_solution();  
-				Solution::vector_to_solution(u_L, &space, &low_sln);	
+				Solution::vector_to_solution(u_L, ref_space, &low_sln);	
 			  }else error ("Matrix solver failed.\n");
 		//---------------------------------------antidiffusive fluxes-----------------------------------	
 				//info("assemble fluxes");	
 			 antidiffusiveFlux(&dof_list,mass_matrix,lumped_matrix,conv_matrix,diffusion,vec_rhs, u_L, flux_scalar, 
 									P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus);		
 	
-			for(int i= 0; i<ndof; i++) coeff_vec[i]= u_L[i]+ (flux_scalar[i]*time_step/lumped_matrix->get(i,i));
-			 Solution::vector_to_solution(coeff_vec, &space, &ref_sln);
+			for(int i= 0; i<ref_ndof; i++) coeff_vec[i]= u_L[i]+ (flux_scalar[i]*time_step/lumped_matrix->get(i,i));
+			 Solution::vector_to_solution(coeff_vec, ref_space, &ref_sln);
 
 			ps++;
 
 	//	if(ps<=P_ADAP_MAX_ITER)
-			changed = p_adap(&space, &ref_sln, coeff_vec, P_ADAP_TOL_LS,P_ADAP_TOL_EX, adapting,elements_to_refine, 
-										elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements);
+			changed = p_adap(ref_space, &ref_sln, coeff_vec, P_ADAP_TOL_LS,P_ADAP_TOL_EX,P_ADAP_TOL_EX_2, adapting,elements_to_refine,elements_to_refine_old, elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements, max_p);
 		//	else changed = false;
 
 			if(changed==true){ 
 					if(coeff_vec!=NULL){ delete [] coeff_vec; 	coeff_vec = NULL;}
-					ndof = space.get_num_dofs();
-					coeff_vec = new scalar[ndof];
-					for(int i=0; i<ndof;i++) coeff_vec[i]=0.0;
+					ref_ndof = ref_space->get_num_dofs();
+					coeff_vec = new scalar[ref_ndof];
+					for(int i=0; i<ref_ndof;i++) coeff_vec[i]=0.0;
 					//Durchlaufen und p bestimmen: in dof_list dof von vertex-basisfunction speichern 
-					p1_list(&space, &dof_list, &al,&p1_elements );
+					p1_list(ref_space, &dof_list, &al,&p1_elements );
 				}
 
 
-	/*		 // Visualize the solution.
-		  sprintf(title, "low_Ord Time %3.2f", current_time);
+			 // Visualize the solution.
+	/* sprintf(title, "low_Ord Time %3.2f", current_time);
 			  Lowview.set_title(title);
 			 Lowview.show(&low_sln);	 
 			  sprintf(title, "korrigierte Loesung: Time %3.2f", current_time);
 			  sview.set_title(title);
 			  sview.show(&ref_sln);*/
-				mview.show(&space);
+				mview.show(ref_space);
 
 
 		//View::wait(HERMES_WAIT_KEYPRESS);
@@ -317,17 +324,17 @@ do
 
 	}
 	while((changed ==true)&&(ps<=P_ADAP_MAX_ITER));
-	for(int i = 0; i <= space.get_mesh()->get_max_element_id(); i++) elements_to_refine[i]= 2;
+
 
 
 			 // Visualize the solution.
-		  sprintf(title, "low_Ord Time %3.2f", current_time);
+sprintf(title, "low_Ord Time %3.2f", current_time);
 			  Lowview.set_title(title);
 			 Lowview.show(&low_sln);	 
 			  sprintf(title, "korrigierte Loesung: Time %3.2f", current_time);
 			  sview.set_title(title);
 			  sview.show(&ref_sln);
-				
+			
 
 	  // Update global time.
   current_time += time_step;
@@ -336,19 +343,28 @@ do
   ts++;
     // Copy last reference solution into sln_prev_time.
     u_prev_time.copy(&ref_sln);
+		if(coeff_vec!=NULL){ delete [] coeff_vec; 	coeff_vec = NULL;}
+		delete ref_space;
+		delete dp_convection;
+		delete dp_mass; 
+		delete adapting; 
 }
 while (current_time < T_FINAL);
 
-//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/end_padap_neu.vtk", "ref5_p1", mode_3D);
+lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/end_padap_neu.vtk", "solution", mode_3D);
+/*sprintf(title, "low_Ord Time %3.2f", current_time);
+			  Lowview.set_title(title);
+			 Lowview.show(&low_sln);	 
+			  sprintf(title, "korrigierte Loesung: Time %3.2f", current_time);
+			  sview.set_title(title);
+			  sview.show(&ref_sln);*/
 
-	if(coeff_vec!=NULL) delete [] coeff_vec;
+
 	delete mass_matrix;  
 	delete conv_matrix;
 	delete low_matrix;
 	delete lowmat_rhs;
-	delete dp_convection;
-	delete dp_mass; 
-	delete adapting;
+
 	delete [] elements_to_refine;
 	delete [] elements_error_ex;
 	delete [] elements_error_ls;

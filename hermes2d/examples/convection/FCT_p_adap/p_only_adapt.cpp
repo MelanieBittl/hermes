@@ -34,13 +34,15 @@ int order, v_ord, h_ord;
 			if(e->is_triangle()==true){
 				order = space->get_element_order(e->id); 
 				if(order >1){
-					space->set_element_order_internal(e->id, order-1);
+					//space->set_element_order_internal(e->id, order-1);
+					space->set_element_order_internal(e->id, 1);
 					changed = true;
 				}
 			}else if(e->is_quad()==true){
 				v_ord = H2D_GET_V_ORDER(space->get_element_order(e->id));
 				h_ord = H2D_GET_H_ORDER(space->get_element_order(e->id));
-				order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord-1);
+			//	order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord-1);
+				order = H2D_MAKE_QUAD_ORDER(1, 1);
 					if((v_ord >1)&&(h_ord>1)){
 						space->set_element_order_internal(e->id, order);
 						changed = true;

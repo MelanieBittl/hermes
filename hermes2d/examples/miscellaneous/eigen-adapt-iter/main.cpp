@@ -22,8 +22,8 @@ using Hermes::EigenSolver;
 //  The following parameters can be changed:
 
 // Select one of the mesh files below.
-//const char* mesh_file = "domain_hole_trias.mesh";              // Square domain with a hole -trias (non-symmetric).
-const char* mesh_file = "domain_hole_quads.mesh";            // Square domain with a hole - quads (symmetric).
+const char* mesh_file = "domain_hole_trias.mesh";              // Square domain with a hole -trias (non-symmetric).
+//const char* mesh_file = "domain_hole_quads.mesh";            // Square domain with a hole - quads (symmetric).
 //const char* mesh_file = "domain_square_quad_1_sym.mesh";     // Square domain with one single element (symmetric).
 //const char* mesh_file = "domain_square_quad_2_sym.mesh";     // Square domain with four quad elements (symmetric).
 //const char* mesh_file = "domain_lshape_quad_sym.mesh";       // L-Shape domain with quadrilateral mesh (symmetric). 

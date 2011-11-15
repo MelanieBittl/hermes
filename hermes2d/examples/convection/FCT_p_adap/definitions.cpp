@@ -193,16 +193,16 @@ Ord ConvectionMatForm::ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *u, 
 	if( radius< 1.0) {		
 		dx = -sin(radius*PI)/4.0*(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
 		dy = -sin(radius*PI)/4.0*(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
-	}else{			
+	}else{		
 	//cone
-	x_0 = 0.5;
-	y_0 = 0.25;
-	radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
-	if((radius< 1.0)&&(x!=x_0)) { 	
-			dx = 1.0-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
-		dy = 1.0-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
-	}else{dx=0.; dy=0.;}	
-       }
+		x_0 = 0.5;
+		y_0 = 0.25;
+		radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
+		if((radius< 1.0)&&(x!=x_0)) { 	
+				dx = 1.0-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
+			dy = 1.0-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
+		}else{dx=0.; dy=0.;}	
+  }
 
 
 
@@ -233,7 +233,7 @@ Ord ConvectionMatForm::ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *u, 
 	radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
 	if(radius<= 1.0) { 	
 		result = 1.0-radius;
-	}	
+	}
        return result;
 };
 

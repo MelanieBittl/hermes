@@ -10,7 +10,7 @@ using namespace RefinementSelectors;
 
 const int INIT_REF_NUM =5;                   // Number of initial refinements.
 const int P_INIT = 1;       
-const int P_MAX = 2;                        // Initial polynomial degree.
+const int P_MAX = 4;                        // Initial polynomial degree.
 const double time_step = 1e-3;                           // Time step.
 
 const double T_FINAL = 2*PI;                       // Time interval length.
@@ -57,7 +57,6 @@ const std::string BDY_OUT = "outlet";
 
 
 
-
 int main(int argc, char* argv[])
 {
   // Load the mesh.
@@ -95,9 +94,9 @@ CustomWeakFormMassmatrix massmatrix(time_step, &u_prev_time);
 CustomWeakFormConvection convection(&u_prev_time);
 
   // Output solution in VTK format.
-//Linearizer lin;
-//bool mode_3D = true;
-//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/pics_padapt/init_padap_neu.vtk", "u", mode_3D);
+Linearizer lin;
+bool mode_3D = true;
+lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/test/init_padap_neu.vtk", "u", mode_3D);
 
   // Initialize views.
 	ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
@@ -115,19 +114,16 @@ CustomWeakFormConvection convection(&u_prev_time);
 	UMFPackMatrix* low_matrix = new UMFPackMatrix;  
 	UMFPackMatrix* lowmat_rhs = new UMFPackMatrix; 
 	scalar* u_L = NULL; 
+	scalar* u_new = NULL; 
 
 	std::list<int> p1_elements;
+	std::list<int> neighbor;
 	int* elements_to_refine = new int[space.get_mesh()->get_max_element_id()+1];   // 2 = refine, 1 = nothing, 0 = coarse
 	double* elements_error_ls_p2 = new double[space.get_mesh()->get_max_element_id()+1];
 	double* elements_error_ex = new double[space.get_mesh()->get_max_element_id()+1];	
 	double* elements_error_ls = new double[space.get_mesh()->get_max_element_id()+1];
 
 	int* elements_to_refine_old = new int[space.get_mesh()->get_max_element_id()+1];
-
-
-
-
-
 
 
 // Time stepping loop:
@@ -144,8 +140,15 @@ CustomWeakFormConvection convection(&u_prev_time);
 		//Durchlaufen und p bestimmen: in dof_list dof von vertex-basisfunction speichern 
 	AsmList al;	
 	AsmList dof_list;
+	AsmList dof_list_2;
 	int ref_ndof;
 
+
+			/*	double total_mass;
+				int dof;
+				UMFPackMatrix* mass_matrix_p1;
+				AsmList dof_list_p1;
+				double mass_p2, mass_p1;*/
 
 
 	Element* e = NULL;
@@ -174,20 +177,26 @@ do
 			scalar* P_plus = new scalar[ref_ndof]; scalar* P_minus = new scalar[ref_ndof];
 			scalar* Q_plus = new scalar[ref_ndof]; scalar* Q_minus = new scalar[ref_ndof];	
 			scalar* R_plus = new scalar[ref_ndof]; scalar* R_minus = new scalar[ref_ndof];
+
 			if(ps==1) for_all_active_elements(e, ref_space->get_mesh()) p1_elements.push_back(e->id);
-			p1_list(ref_space, &dof_list, &al,&p1_elements);	
-			dp_mass->assemble(mass_matrix, NULL); 	
-			UMFPackMatrix* lumped_matrix = massLumping(&dof_list,mass_matrix);
+			p1_list(ref_space, &dof_list,&dof_list_2, &al,&p1_elements,&neighbor);	
+			dp_mass->assemble(mass_matrix, NULL);
+			UMFPackMatrix* lumped_matrix = massLumping(&dof_list,&dof_list_2,mass_matrix);
 			lumped_matrix->multiply_with_scalar(time_step); 
 			mass_matrix->multiply_with_scalar(time_step);	
-						
-		//if(ps==1){	
+
+
+
+
+			
+	//if(ps==1){	
 	Lumped_Projection::project_lumped(ref_space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
 		OGProjection::project_global(ref_space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);
-		lumped_flux_limiter(&dof_list,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
+		lumped_flux_limiter(&dof_list,&dof_list_2,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
 								P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus );
 		/*}else{
-				OGProjection::project_global(ref_space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
+				//OGProjection::project_global(ref_space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
+				Lumped_Projection::project_lumped(ref_space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
 		}*/
 			//OGProjection::project_global(ref_space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM);
 
@@ -197,13 +206,52 @@ do
 			pview.show(&ref_sln);
 			mview.show(ref_space);	
 
+		Solution::vector_to_solution(coeff_vec_2, ref_space, &low_sln);
+		sprintf(title, "L2:init proj. Loesung, ps=%i, ts=%i", ps,ts);
+			  Lowview.set_title(title);
+			 Lowview.show(&low_sln);	 
+
+//if(ps>1)lin.save_solution_vtk(&ref_sln, "/space/melli/pics_hermes/test/test_3333.vtk", "solution", mode_3D);
+
+	/*	if(ps==1) {		 mass_p1=0.;
+			mass_matrix_p1 = new UMFPackMatrix;  
+			mass_matrix_p1->create(mass_matrix->get_size(), mass_matrix->get_nnz(), mass_matrix->get_Ap(), mass_matrix->get_Ai(),mass_matrix->get_Ax());			
+			for_all_active_elements(e, ref_space->get_mesh()) p1_elements.push_back(e->id);
+			p1_list(ref_space, &dof_list_p1, &al,&p1_elements);	
+			for(unsigned int i = 0; i < dof_list_p1.cnt; i ++){	
+				for(unsigned int j = 0; j < dof_list_p1.cnt; j ++){	
+					mass_p1+=fabs(mass_matrix_p1->get(dof_list_p1.dof[i],dof_list_p1.dof[j]));
+				}							
+			}
+		}
+      mass_matrix->multiply_with_vector(coeff_vec, coeff_vec_2);
+			total_mass=0.;mass_p2=0.;
+			for_all_active_elements(e, ref_space->get_mesh()) p1_elements.push_back(e->id);
+			p1_list(ref_space, &dof_list, &al,&p1_elements);	
+
+			if(dof_list_p1.cnt!=dof_list.cnt) info("ungleiche Listen");
+			for(unsigned int i = 0; i < dof_list.cnt; i ++){					
+ 					dof= dof_list.dof[i];
+				total_mass+=coeff_vec_2[dof];
+					for(unsigned int j = 0; j < dof_list.cnt; j ++){	
+						mass_p2+=fabs(mass_matrix->get(dof_list.dof[i],dof_list.dof[j]));
+					//	if(mass_matrix_p1->get(dof_list_p1.dof[i],dof_list_p1.dof[j])!= mass_matrix->get(dof_list.dof[i],dof_list.dof[j])) info("ungleich");
+					}							
+			}
+			info("mass=%f, mass_p1=%f, mass_p2=%f", total_mass, mass_p1,mass_p2);
+*/
+
+
+			
 			if(ps==1) p1_sln.copy(&ref_sln);
 
 			if(ts==1)
 				changed = p_adap(ref_space, &ref_sln, &p1_sln,coeff_vec, P_ADAP_TOL_LS_INIT,P_ADAP_TOL_EX_INIT, P_ADAP_TOL_EX_2_INIT,
-			adapting,elements_to_refine, NULL, elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements, max_p,ps);
+			adapting,elements_to_refine, NULL, elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements,&neighbor, max_p,ps);
 				else changed = p_adap(ref_space, &u_prev_time,&p1_sln, coeff_vec, P_ADAP_TOL_LS,P_ADAP_TOL_EX, P_ADAP_TOL_EX_2,
-				adapting,elements_to_refine, NULL,	elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements, max_p,ps);
+				adapting,elements_to_refine, NULL,	elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements,&neighbor,  max_p,ps);
+			
+
 			
 
 		
@@ -231,7 +279,7 @@ do
 
 		scalar* coeff_vec = new scalar[ref_ndof];
 		for(int i=0; i<ref_ndof;i++) coeff_vec[i]=0.0;	
-		p1_list(ref_space, &dof_list, &al,&p1_elements);	
+		p1_list(ref_space, &dof_list,&dof_list_2, &al,&p1_elements,&neighbor);	
 		ps=1; 
 
 //Adaptivity loop
@@ -252,14 +300,14 @@ do
 		//	info("Masslumping");
 
 			dp_mass->assemble(mass_matrix, NULL); 	
-			UMFPackMatrix* lumped_matrix = massLumping(&dof_list,mass_matrix);
+			UMFPackMatrix* lumped_matrix = massLumping(&dof_list,&dof_list_2,mass_matrix);
 
 			//------------------------artificial DIFFUSION D---------------------------------------
 			  // Set up the solver, matrix, and rhs according to the solver selection.=>artificial Diffusion
 			//info("artificialDiffusion");
 
 			dp_convection->assemble(conv_matrix, NULL,true);
-			UMFPackMatrix* diffusion = artificialDiffusion(&dof_list,conv_matrix);
+			UMFPackMatrix* diffusion = artificialDiffusion(&dof_list,&dof_list_2,conv_matrix);
 
 			//--------------------------------------------------------------------------------------------
 
@@ -300,7 +348,7 @@ do
 		if((changed==true)||(ts==1)) {	
 			Lumped_Projection::project_lumped(ref_space, &u_prev_time, coeff_vec, matrix_solver, lumped_matrix);
 			OGProjection::project_global(ref_space,&u_prev_time, coeff_vec_2, matrix_solver, HERMES_L2_NORM);
-			lumped_flux_limiter(&dof_list,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
+			lumped_flux_limiter(&dof_list,&dof_list_2,mass_matrix, lumped_matrix, coeff_vec, coeff_vec_2,
 									P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus );
 				//OGProjection::project_global(ref_space,&u_prev_time, coeff_vec, matrix_solver, HERMES_L2_NORM); 
 				Solution::vector_to_solution(coeff_vec, ref_space, &ref_sln);
@@ -326,19 +374,41 @@ do
 
 		//---------------------------------------antidiffusive fluxes-----------------------------------	
 				//info("assemble fluxes");	
-			 antidiffusiveFlux(&dof_list,mass_matrix,lumped_matrix,conv_matrix,diffusion,vec_rhs, u_L, flux_scalar, 
+			 antidiffusiveFlux(&dof_list,&dof_list_2,mass_matrix,lumped_matrix,conv_matrix,diffusion,vec_rhs, u_L, flux_scalar, 
 									P_plus, P_minus, Q_plus, Q_minus, R_plus, R_minus);		
 	
-			for(int i= 0; i<ref_ndof; i++) coeff_vec[i]= u_L[i]+ (flux_scalar[i]*time_step/lumped_matrix->get(i,i));
-			 Solution::vector_to_solution(coeff_vec, ref_space, &ref_sln);
+			//for(int i= 0; i<ref_ndof; i++) coeff_vec[i]= u_L[i]+ (flux_scalar[i]*time_step/lumped_matrix->get(i,i));
+			//Solution::vector_to_solution(coeff_vec, ref_space, &ref_sln);
+
+
+			vec_rhs->zero(); 
+			lumped_matrix->multiply_with_vector(u_L, coeff_vec_2); 
+			for(int i= 0; i<ref_ndof; i++) coeff_vec_2[i]+= (flux_scalar[i]*time_step);
+			vec_rhs->add_vector(coeff_vec_2);
+			UMFPackLinearSolver* newSol = new UMFPackLinearSolver(lumped_matrix,vec_rhs);	
+			if(newSol->solve()){ 
+			u_new = newSol->get_solution();  
+			Solution::vector_to_solution(u_new, ref_space, &ref_sln);	
+			}else error ("Matrix solver failed.\n");	 
+
+
+
 
 			ps++;
 
-
+			/*			for_all_active_elements(e, ref_space->get_mesh()) p1_elements.push_back(e->id);
+			p1_list(ref_space, &dof_list, &al,&p1_elements);	
+      mass_matrix->multiply_with_vector(coeff_vec, coeff_vec_2);
+			total_mass=0;
+			for(unsigned int i = 0; i < dof_list.cnt; i ++){
+ 					dof= dof_list.dof[i];
+				total_mass+=coeff_vec_2[dof];
+			}
+			info("mass=%f", total_mass);*/
 			
 
 
-			changed = p_adap(ref_space, &ref_sln,&p1_sln, coeff_vec, P_ADAP_TOL_LS,P_ADAP_TOL_EX,P_ADAP_TOL_EX_2, adapting,elements_to_refine,elements_to_refine_old, elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements, max_p,ps);
+			changed = p_adap(ref_space, &ref_sln,&p1_sln, coeff_vec, P_ADAP_TOL_LS,P_ADAP_TOL_EX,P_ADAP_TOL_EX_2, adapting,elements_to_refine,elements_to_refine_old, elements_error_ex,elements_error_ls, elements_error_ls_p2, &p1_elements,&neighbor,  max_p,ps);
 		//	else changed = false;
 
 			if(changed==true){ 
@@ -347,14 +417,14 @@ do
 					coeff_vec = new scalar[ref_ndof];
 					for(int i=0; i<ref_ndof;i++) coeff_vec[i]=0.0;
 					//Durchlaufen und p bestimmen: in dof_list dof von vertex-basisfunction speichern 
-					p1_list(ref_space, &dof_list, &al,&p1_elements );
+					p1_list(ref_space, &dof_list,&dof_list_2, &al,&p1_elements,&neighbor );
 				}
 
 
 			 // Visualize the solution.
- sprintf(title, "low_Ord Timestep %i", ts);
-			  Lowview.set_title(title);
-			 Lowview.show(&low_sln);	 
+ //sprintf(title, "low_Ord Timestep %i", ts);
+			//  Lowview.set_title(title);
+			// Lowview.show(&low_sln);	 
 			  sprintf(title, "korrigierte Loesung: Time %3.2f,timestep %i", current_time,ts);
 			  sview.set_title(title);
 			  sview.show(&ref_sln);
@@ -365,7 +435,8 @@ do
 		//View::wait(HERMES_WAIT_KEYPRESS);
 
 			  // Clean up.
-				delete lowOrd; 
+				delete lowOrd;
+				delete newSol;  
 			delete lumped_matrix; 
 			delete diffusion;
 			delete[] lumped_scalar;  
@@ -389,9 +460,9 @@ do
 
 
 			 // Visualize the solution.
-sprintf(title, "low_Ord Time %3.2f", current_time);
-			  Lowview.set_title(title);
-			 Lowview.show(&low_sln);	 
+//sprintf(title, "low_Ord Time %3.2f", current_time);
+			//  Lowview.set_title(title);
+			// Lowview.show(&low_sln);	 
 			  sprintf(title, "korrigierte Loesung: Time %3.2f", current_time);
 			  sview.set_title(title);
 			  sview.show(&ref_sln);

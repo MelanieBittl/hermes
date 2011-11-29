@@ -185,7 +185,7 @@ Ord ConvectionMatForm::ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *u, 
 
  void CustomInitialCondition::derivatives(double x, double y, scalar& dx, scalar& dy) const {
       
-    	double radius;
+   	double radius;
         //hump
 	double x_0 =0.25;
 	double y_0= 0.5;	
@@ -193,24 +193,27 @@ Ord ConvectionMatForm::ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *u, 
 	if( radius< 1.0) {		
 		dx = -sin(radius*PI)/4.0*(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
 		dy = -sin(radius*PI)/4.0*(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
-	}else{		
-	//cone
+	}
+	else{			
+		//cone
 		x_0 = 0.5;
 		y_0 = 0.25;
 		radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
 		if((radius< 1.0)&&(x!=x_0)) { 	
 				dx = 1.0-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
 			dy = 1.0-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
-		}else{dx=0.; dy=0.;}	
-  }
-
-
+		}
+		else{dx=0.; dy=0.;}	
+  
+	}
+		
 
 };
 
  scalar CustomInitialCondition::value(double x, double y) const {
-        scalar result = 0.0;
-    	double radius;
+       
+     scalar result = 0.0;
+	double radius;
         //hump
 	double x_0 =0.25;
 	double y_0= 0.5;	
@@ -233,7 +236,7 @@ Ord ConvectionMatForm::ord(int n, double *wt, Func<Ord> *u_ext[], Func<Ord> *u, 
 	radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
 	if(radius<= 1.0) { 	
 		result = 1.0-radius;
-	}
+	}	
        return result;
 };
 

@@ -1,5 +1,6 @@
 #include "p_only_adapt.h"
 
+
 bool PonlyAdapt::adapt(int* elements_to_refine)
 {  info("p-adapt");
 	if(elements_to_refine==NULL) return false;
@@ -33,15 +34,15 @@ int order, v_ord, h_ord;
 			if(e->is_triangle()==true){
 				order = space->get_element_order(e->id); 
 				if(order >1){
-					space->set_element_order_internal(e->id, order-1);
-					//space->set_element_order_internal(e->id, 1);
+					//space->set_element_order_internal(e->id, order-1);
+					space->set_element_order_internal(e->id, 1);
 					changed = true;
 				}
 			}else if(e->is_quad()==true){
 				v_ord = H2D_GET_V_ORDER(space->get_element_order(e->id));
 				h_ord = H2D_GET_H_ORDER(space->get_element_order(e->id));
-				order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord-1);
-				//order = H2D_MAKE_QUAD_ORDER(1, 1);
+			//	order = H2D_MAKE_QUAD_ORDER(h_ord-1, v_ord-1);
+				order = H2D_MAKE_QUAD_ORDER(1, 1);
 					if((v_ord >1)&&(h_ord>1)){
 						space->set_element_order_internal(e->id, order);
 						changed = true;
@@ -141,19 +142,10 @@ double ErrorEstimation::calc_l2_norm(Hermes::vector<Solution *> slns, Hermes::ve
     num_act_elems += sln[i]->get_mesh()->get_num_active_elements();
 
     int max = meshes[i]->get_max_element_id();
-    if(solutions_for_adapt) {
-      if (errors[i] != NULL) delete [] errors[i];
-      errors[i] = new double[max];
-      memset(errors[i], 0, sizeof(double) * max);
-    }
+
   }
 
   double total_norm = 0.0;
-  double *norms = new double[num];
-  memset(norms, 0, num * sizeof(double));
- 
-  if(solutions_for_adapt) this->errors_squared_sum = 0.0;
-  double total_error = 0.0;
 
   // Calculate error.
   Element **ee;
@@ -163,15 +155,10 @@ double ErrorEstimation::calc_l2_norm(Hermes::vector<Solution *> slns, Hermes::ve
       for (j = 0; j < num; j++) {
         if (error_form[i][j] != NULL) {
           double err, nrm;
-          err = eval_error(error_form[i][j], sln[i], sln[j], rsln[i], rsln[j]);
-          nrm = eval_error_norm(error_form[i][j], rsln[i], rsln[j]);
 
-          norms[i] += nrm;
+          nrm = eval_error_norm(error_form[i][j], rsln[i], rsln[j]);
           total_norm  += nrm;
-          total_error += err;
-  
-          if(solutions_for_adapt)
-            this->errors[i][ee[i]->id] += err;
+
         }
       }
     }
@@ -183,53 +170,15 @@ double ErrorEstimation::calc_l2_norm(Hermes::vector<Solution *> slns, Hermes::ve
   tmr.tick();
   error_time = tmr.accumulated();
 
-  // Make the error relative if needed.
-  if(solutions_for_adapt) {
-    if ((error_flags & HERMES_ELEMENT_ERROR_MASK) == HERMES_ELEMENT_ERROR_REL) {
-      for (int i = 0; i < this->num; i++) {
-        Element* e;
-        for_all_active_elements(e, meshes[i])
-          errors[i][e->id] /= norms[i];
-      }
-    }
-
-    this->errors_squared_sum = total_error;
-
-    // Element error mask is used here, because this variable is used in the adapt()
-    // function, where the processed error (sum of errors of processed element errors)
-    // is matched to this variable.
-    if ((error_flags & HERMES_TOTAL_ERROR_MASK) == HERMES_ELEMENT_ERROR_REL)
-      errors_squared_sum = errors_squared_sum / total_norm;
-  }
-
-  // Prepare an ordered list of elements according to an error.
-  if(solutions_for_adapt) {
-    fill_regular_queue(meshes);
-    have_errors = true;
-  }
-  else {
-    for (i = 0; i < n; i++) {
-      this->sln[i] = slns_original[i];
-      this->rsln[i] = rslns_original[i];
-    }
-  }
 
   delete [] meshes;
   delete [] tr;
-  delete [] norms;
+
 
 
 
   // Return error value.
-/*
-  if ((error_flags & HERMES_TOTAL_ERROR_MASK) == HERMES_TOTAL_ERROR_ABS)
-   return sqrt(total_error);
-  else if ((error_flags & HERMES_TOTAL_ERROR_MASK) == HERMES_TOTAL_ERROR_REL)
-    return sqrt(total_error / total_norm);
-  else {
-    error("Unknown total error type (0x%x).", error_flags & HERMES_TOTAL_ERROR_MASK);
-    return -1.0;
-  }*/
+
 	return sqrt(total_norm);
 }
 

@@ -103,16 +103,16 @@ public:
 	if( radius< 1) {		
 		dx = -sin(radius*PI)/4.0*(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
 		dy = -sin(radius*PI)/4.0*(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
-	}else{			
+	/*}else{			
 	//cone
 	x_0 = 0.5;
 	y_0 = 0.25;
 	radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
 	if((radius< 1)&&(x!=x_0)) { 	
 			dx = 1-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*x;
-		dy = 1-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	
+		dy = 1-(1.0/(0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0))))*2*y;	*/
 	}else{dx=0.; dy=0.;}	
-       }
+      // }
 
 
 
@@ -130,21 +130,22 @@ public:
 		return result;	
 	}
 	//slotted cylinder
-	x_0 = 0.5;
+/*	x_0 = 0.5;
 	y_0 = 0.75;
 	radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
 	if(radius <= 1) { 	
 		if(fabs((x-x_0))>= 0.025) return 1.0;
 		if(y>=0.85) return 1.0;
-	}
+	}*/
 	
 	//cone
-	x_0 = 0.5;
+/*	x_0 = 0.5;
 	y_0 = 0.25;
 	radius = 1.0/0.15 * sqrt( pow((x-x_0),2.0) + pow((y-y_0),2.0));
 	if(radius<= 1) { 	
 		result = 1-radius;
-	}	
+	}*/
+
        return result;
   }
 

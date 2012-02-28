@@ -12,7 +12,7 @@ using namespace RefinementSelectors;
 
 const int INIT_GLOB_REF_NUM = 5;                  // Number of initial uniform mesh refinements.
 const int INIT_BDY_REF_NUM = 4;                   // Number of initial refinements towards boundary.
-const int P_INIT = 1;                             // Initial polynomial degree.
+const int P_INIT = 2;                             // Initial polynomial degree.
 const double time_step = 1e-3;                           // Time step.
 const double T_FINAL = 2*PI;                       // Time interval length.
 const double NEWTON_TOL = 1e-5;                   // Stopping criterion for the Newton's method.
@@ -74,18 +74,18 @@ int main(int argc, char* argv[])
 
   // Initialize views.
   ScalarView sview("Solution", new WinGeom(0, 0, 500, 400));
- // OrderView oview("Mesh", new WinGeom(510, 0, 460, 400));
-  // oview.show(&space);
+  OrderView oview("Mesh", new WinGeom(510, 0, 460, 400));
+  oview.show(&space);
 
   // Time stepping loop:
   double current_time = 0; int ts = 1;
   bool jacobian_changed = true;
   do
   {
-    info("---- Time step %d, t = %g s.", ts, current_time);
+    info("Time step %i, t = %f", ts, current_time);
 
     // Perform Newton's iteration.
-    bool verbose = true;
+    bool verbose = false;
     if (!hermes2d.solve_newton(coeff_vec, &dp, solver, matrix, rhs, jacobian_changed,
                                NEWTON_TOL, NEWTON_MAX_ITER, verbose)) error("Newton's iteration failed.");
 
@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
     sprintf(title, "Solution, t = %g", current_time);
     sview.set_title(title);
     sview.show(&u_prev_time);
-    //oview.show(&space);
+    oview.show(&space);
 
     // Increase current time and counter of time steps.
     current_time += time_step;

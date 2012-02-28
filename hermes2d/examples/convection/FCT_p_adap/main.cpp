@@ -96,7 +96,7 @@ CustomWeakFormConvection convection(&u_prev_time);
   // Output solution in VTK format.
 Linearizer lin;
 bool mode_3D = true;
-lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/test/init_padap_neu.vtk", "u", mode_3D);
+//lin.save_solution_vtk(&u_prev_time, "/space/melli/pics_hermes/test/init_padap_neu.vtk", "u", mode_3D);
 
   // Initialize views.
 	ScalarView Lowview("niedriger Ordnung", new WinGeom(500, 500, 500, 400));
